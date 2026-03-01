@@ -23,7 +23,7 @@ Built as a [Databricks App](https://docs.databricks.com/aws/en/dev-tools/databri
 
 ![digital_image](https://static.wixstatic.com/media/729282_bd66c29c92ab4f0a8ba8028ad61d45ce~mv2.gif)
 
-The artricle
+The article
 📚 https://www.ikidata.fi/post/create-your-own-virtual-persona-on-databricks
 
 ---
