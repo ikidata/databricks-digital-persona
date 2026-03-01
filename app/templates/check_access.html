@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% block title %}Check Access{% endblock %}
+
+{% block head %}
+<style>
+    @keyframes scanPulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 1; }
+    }
+    @keyframes tableAppear {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .table-check-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-bottom: 6px;
+        transition: all 0.3s ease;
+        animation: tableAppear 0.4s ease;
+    }
+    .table-check-row.pending {
+        background: var(--surface);
+        border: 1px solid var(--border);
+    }
+    .table-check-row.checking {
+        background: rgba(88,166,255,0.06);
+        border: 1px solid rgba(88,166,255,0.2);
+    }
+    .table-check-row.success {
+        background: rgba(63,185,80,0.05);
+        border: 1px solid rgba(63,185,80,0.2);
+    }
+    .table-check-row.failed {
+        background: rgba(248,81,73,0.05);
+        border: 1px solid rgba(248,81,73,0.2);
+    }
+    .check-icon {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Check Access</h1>
+    <p>Validate that you have read access to the required Databricks system tables</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        System Table Access
+    </div>
+
+    <p style="color:var(--text-muted);font-size:14px;margin-bottom:20px;">
+        Click the button below to test connectivity and permissions for each system table.
+        All tables must be accessible for a complete persona analysis.
+    </p>
+
+    <button id="checkBtn" class="btn btn-primary" onclick="runAccessCheck()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        Check Access
+    </button>
+
+    <div id="results" style="margin-top:24px;">
+        {% if access_results %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>System Table</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in access_results.results %}
+                <tr>
+                    <td><code>{{ r.table }}</code></td>
+                    <td>
+                        {% if r.accessible %}
+                        <span style="font-size:18px;" title="Accessible">✅</span>
+                        {% else %}
+                        <span style="font-size:18px;" title="No Access">❌</span>
+                        {% endif %}
+                    </td>
+                    <td style="color:var(--text-muted);font-size:13px;">{{ r.error or 'OK' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p style="color:var(--text-muted);font-size:12px;margin-top:12px;">
+            Last checked: {{ access_results.timestamp }}
+        </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const systemTables = [
+    { name: 'system.access.audit', desc: 'Behavioral backbone — all user actions' },
+    { name: 'system.query.history', desc: 'SQL patterns, complexity, frequency' },
+    { name: 'system.compute.clusters', desc: 'Compute preferences and resources' },
+    { name: 'system.lakeflow.jobs', desc: 'Scheduled workload ownership' },
+    { name: 'system.lakeflow.job_run_timeline', desc: 'Job execution & reliability' },
+    { name: 'system.access.table_lineage', desc: 'Data pipeline dependencies' },
+    { name: 'system.access.column_lineage', desc: 'Fine-grained data access' },
+    { name: 'system.billing.usage', desc: 'Cost footprint & consumption' },
+];
+
+const funMessages = [
+    "Knocking on the warehouse door...",
+    "Warming up the SQL engine...",
+    "Peeking into system tables...",
+    "Counting your audit events...",
+    "Checking your data permissions...",
+    "Verifying table access rights...",
+    "Almost done scanning...",
+    "Running final checks...",
+];
+
+let msgInterval = null;
+
+async function runAccessCheck() {
+    const btn = document.getElementById('checkBtn');
+    const results = document.getElementById('results');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Checking...';
+
+    // Show animated loading with all 8 tables in "pending" state
+    let loadingHtml = `
+        <div style="text-align:center;padding:20px 0 16px;">
+            <div style="position:relative;width:60px;height:60px;margin:0 auto 16px;">
+                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--chart-2)" stroke-width="1.5" style="animation:scanPulse 1.5s ease infinite;">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <path d="M9 12l2 2 4-4" stroke-width="2"/>
+                </svg>
+            </div>
+            <p style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;" id="scanMessage">Scanning system tables...</p>
+            <p style="font-size:12px;color:var(--text-muted);">This may take a couple of minutes (warehouse cold start + 8 table checks)</p>
+        </div>
+        <div style="margin-top:16px;" id="tableList">`;
+
+    systemTables.forEach((t, i) => {
+        loadingHtml += `
+            <div class="table-check-row pending" id="row-${i}">
+                <div class="check-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" opacity="0.3">
+                        <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                </div>
+                <div style="flex:1;">
+                    <code style="font-size:13px;color:var(--text);">${t.name}</code>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:1px;">${t.desc}</div>
+                </div>
+                <div id="status-${i}" style="font-size:12px;color:var(--text-muted);">Waiting...</div>
+            </div>`;
+    });
+    loadingHtml += '</div>';
+    results.innerHTML = loadingHtml;
+
+    // Animate checking state sequentially
+    let currentCheck = 0;
+    const checkInterval = setInterval(() => {
+        if (currentCheck < systemTables.length) {
+            const row = document.getElementById(`row-${currentCheck}`);
+            const status = document.getElementById(`status-${currentCheck}`);
+            if (row) {
+                row.className = 'table-check-row checking';
+                row.querySelector('.check-icon').innerHTML = '<span class="spinner" style="width:16px;height:16px;"></span>';
+                status.textContent = 'Checking...';
+                status.style.color = 'var(--chart-2)';
+            }
+            currentCheck++;
+        }
+    }, 2500);
+
+    // Rotate fun messages
+    let msgIdx = 0;
+    msgInterval = setInterval(() => {
+        const el = document.getElementById('scanMessage');
+        if (el) {
+            msgIdx = (msgIdx + 1) % funMessages.length;
+            el.style.opacity = 0;
+            setTimeout(() => {
+                el.textContent = funMessages[msgIdx];
+                el.style.opacity = 1;
+            }, 200);
+            el.style.transition = 'opacity 0.2s ease';
+        }
+    }, 3000);
+
+    try {
+        const resp = await fetch('/api/check-access', { method: 'POST' });
+        if (!resp.ok) {
+            const body = await resp.text();
+            throw new Error(`HTTP ${resp.status}: ${body.slice(0, 200)}`);
+        }
+        let data;
+        try {
+            data = await resp.json();
+        } catch (_) {
+            throw new Error('Server returned a non-JSON response. The Databricks proxy may have timed out — please retry.');
+        }
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        clearInterval(checkInterval);
+        if (msgInterval) clearInterval(msgInterval);
+
+        // Animate results appearing one by one
+        let allOk = true;
+        for (let i = 0; i < data.results.length; i++) {
+            const r = data.results[i];
+            if (!r.accessible) allOk = false;
+
+            setTimeout(() => {
+                const row = document.getElementById(`row-${i}`);
+                const status = document.getElementById(`status-${i}`);
+                if (row && status) {
+                    if (r.accessible) {
+                        row.className = 'table-check-row success';
+                        row.querySelector('.check-icon').innerHTML = `<span style="font-size:20px;">✅</span>`;
+                        status.textContent = 'OK';
+                        status.style.color = 'var(--success)';
+                    } else {
+                        row.className = 'table-check-row failed';
+                        row.querySelector('.check-icon').innerHTML = `<span style="font-size:20px;">❌</span>`;
+                        status.textContent = r.error ? r.error.slice(0, 80) : 'No Access';
+                        status.style.color = 'var(--error)';
+                    }
+                }
+
+                // After last result, show summary
+                if (i === data.results.length - 1) {
+                    const scanMsg = document.getElementById('scanMessage');
+                    if (scanMsg) {
+                        scanMsg.textContent = allOk ? 'All systems go!' : 'Some tables inaccessible';
+                        scanMsg.style.color = allOk ? 'var(--success)' : 'var(--warning)';
+                    }
+
+                    const tableList = document.getElementById('tableList');
+                    if (tableList) {
+                        const summaryHtml = allOk
+                            ? `<div style="margin-top:16px;padding:14px;background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.2);border-radius:8px;display:flex;align-items:center;gap:10px;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                <div>
+                                    <span style="font-weight:600;color:var(--success);">All 8 system tables accessible!</span>
+                                    <span style="color:var(--text-muted);font-size:13px;margin-left:8px;">You can proceed to <a href="/analyze" style="color:var(--info);">Run Analysis</a></span>
+                                </div>
+                               </div>`
+                            : `<div style="margin-top:16px;padding:14px;background:rgba(210,153,34,0.08);border:1px solid rgba(210,153,34,0.2);border-radius:8px;">
+                                <span style="font-weight:600;color:var(--warning);">Some tables are not accessible.</span>
+                                <span style="color:var(--text-muted);font-size:13px;"> The persona analysis may be incomplete.</span>
+                               </div>`;
+                        tableList.insertAdjacentHTML('afterend', summaryHtml);
+                    }
+                }
+            }, i * 150); // Stagger results every 150ms for a nice cascade
+        }
+
+    } catch (err) {
+        clearInterval(checkInterval);
+        if (msgInterval) clearInterval(msgInterval);
+        results.innerHTML = `<div style="padding:16px;background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.2);border-radius:8px;">
+            <span style="color:var(--error);font-weight:600;">Connection error:</span>
+            <span style="color:var(--text-muted);font-size:13px;"> ${err.message}</span>
+        </div>`;
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </svg> Re-check Access`;
+}
+</script>
+{% endblock %}

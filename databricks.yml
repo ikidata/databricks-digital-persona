@@ -1,0 +1,59 @@
+bundle:
+  name: digital_persona_app
+
+sync:
+  exclude:
+    - ".images/**"
+
+variables:
+  model_serving_endpoint:
+    description: "Databricks model serving endpoint name for digital twin chat (LLM)"
+    default: "databricks-claude-sonnet-4-6"
+
+resources:
+  apps:
+    digital_persona:
+      name: "digital-persona"
+      source_code_path: "./app"
+      description: "Digital Persona Creator - Build rich user profiles from Databricks system tables"
+      # App resources — what the app's service principal can access
+      resources:
+        - name: "starter-warehouse"
+          description: "SQL warehouse for system table queries"
+          sql_warehouse:
+            id: "123456789"
+            permission: "CAN_USE"
+        - name: "llm-endpoint"
+          description: "Serving endpoint for digital twin chat"
+          serving_endpoint:
+            name: ${var.model_serving_endpoint}
+            permission: "CAN_QUERY"
+      # On-behalf-of-user scopes — prompt user for consent on first use
+      user_api_scopes:
+        - sql
+        - serving.serving-endpoints
+        - catalog.catalogs:read
+        - catalog.schemas:read
+        - catalog.tables:read
+      config:
+        env:
+          - name: "WAREHOUSE_ID"
+            value: "starter-warehouse"
+          - name: "MODEL_SERVING_ENDPOINT"
+            value: ${var.model_serving_endpoint}
+      permissions:
+        - level: CAN_USE
+          group_name: users
+
+targets:
+  dev:
+    mode: production
+    default: true
+    workspace:
+      host: https://adb-123456789.12.azuredatabricks.net
+      root_path: /Workspace/Shared/digital-persona-app/dev
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-123456789.12.azuredatabricks.net
+      root_path: /Workspace/Shared/digital-persona-app/prod

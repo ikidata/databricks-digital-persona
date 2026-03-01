@@ -1,0 +1,51 @@
+# Digital Persona App — Local Development Configuration
+# This file is ONLY needed for local development (run_locally.py).
+# When deployed as a Databricks App, auth and warehouse config come from
+# the asset bundle resources and OBO tokens automatically.
+#
+# Usage:
+#   cp config.yaml.example config.yaml
+#   # Edit config.yaml with your values, then:
+#   python run_locally.py --email you@yourcompany.com
+
+databricks:
+  # Workspace URL (no trailing slash)
+  host: "https://your-workspace.azuredatabricks.net"
+
+  # ── Authentication ─────────────────────────────────────────
+  # Choose ONE method: "service_principal" or "pat"
+  auth_method: "pat"   # PAT is simplest for local dev
+
+  # --- Option A: Personal Access Token (PAT — recommended for local dev) ---
+  # Generate at: {workspace_url}/#setting/account → Developer → Access tokens
+  token: "dapi_your_personal_access_token_here"
+
+  # --- Option B: Service Principal (OAuth M2M) ---
+  # client_id: "your-service-principal-application-id"
+  # client_secret: "your-service-principal-oauth-secret"
+
+  # SQL Warehouse HTTP path (find in SQL Warehouses → your warehouse → Connection details)
+  sql_warehouse_http_path: "/sql/1.0/warehouses/your_warehouse_id"
+
+# Persona generation settings
+persona:
+  # Number of days to look back for activity data
+  lookback_days: 90
+
+# Chat with Digital Twin (Databricks Foundation Model API)
+chat:
+  # Model serving endpoint name
+  model_serving_endpoint: "databricks-claude-sonnet-4-6"
+  # Max tokens for response
+  max_tokens: 1024
+
+# System tables used for persona building (override defaults if needed)
+# system_tables:
+#   - "system.access.audit"
+#   - "system.query.history"
+#   - "system.compute.clusters"
+#   - "system.lakeflow.jobs"
+#   - "system.lakeflow.job_run_timeline"
+#   - "system.access.table_lineage"
+#   - "system.access.column_lineage"
+#   - "system.billing.usage"

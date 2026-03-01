@@ -1,0 +1,38 @@
+# Credentials and secrets
+config/databricks.env
+config.yaml
+!config.yaml.example
+*.env
+!*.env.example
+.env
+
+# Local investigation / scratch scripts (may contain credentials)
+investigate_databricks.py
+scratch_*.py
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+.eggs/
+*.egg-info/
+dist/
+build/
+
+# Output
+output/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

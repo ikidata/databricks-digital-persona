@@ -1,0 +1,506 @@
+{% extends "base.html" %}
+{% block title %}Digital Version{% endblock %}
+
+{% block content %}
+{% if not has_data %}
+<div class="empty-state">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+    <h3>No Persona Data Yet</h3>
+    <p style="margin-bottom:20px;">Run the analysis first to generate the system prompt for your digital version.</p>
+    <a href="/analyze" class="btn btn-primary">Run Analysis</a>
+</div>
+{% else %}
+
+<!-- Archetype-themed Digital Twin Hero -->
+{% if persona and persona.archetype %}
+{% set primary = persona.archetype.primary %}
+{% set hero_avatar = 'pipeline-architect' if 'Pipeline Architect' in primary.name
+    else 'data-explorer' if 'Data Explorer' in primary.name
+    else 'platform-guardian' if 'Platform Guardian' in primary.name
+    else 'dashboard-crafter' if 'Dashboard Crafter' in primary.name
+    else 'ml-alchemist' if 'ML Alchemist' in primary.name
+    else 'cost-optimizer' if 'Cost-Conscious' in primary.name
+    else 'pipeline-architect' %}
+<div style="background:{{ primary.gradient }};border-radius:16px;padding:40px 36px;margin-bottom:24px;position:relative;overflow:hidden;">
+    <div style="position:absolute;top:-40%;right:-10%;width:350px;height:350px;border-radius:50%;background:rgba(255,255,255,0.06);"></div>
+    <div style="position:absolute;bottom:-30%;left:-5%;width:250px;height:250px;border-radius:50%;background:rgba(255,255,255,0.04);"></div>
+
+    <div style="position:relative;z-index:1;display:flex;align-items:center;gap:32px;">
+        <div style="width:120px;height:120px;border-radius:20px;overflow:hidden;flex-shrink:0;border:2px solid rgba(255,255,255,0.2);box-shadow:0 8px 24px rgba(0,0,0,0.3);">
+            <img src="{{ url_for('static', filename='avatars/' + hero_avatar + '.png') }}"
+                 alt="{{ primary.name }}"
+                 style="width:120px;height:120px;object-fit:cover;display:block;">
+        </div>
+        <div>
+            <div style="font-size:12px;text-transform:uppercase;letter-spacing:2.5px;opacity:0.7;color:white;margin-bottom:4px;">Digital Twin &mdash; {{ primary.emoji }} {{ primary.name }}</div>
+            <h1 style="font-size:2em;font-weight:800;color:white;margin-bottom:8px;">
+                Chat with Your Digital Twin
+                <span style="font-size:0.5em;vertical-align:middle;margin-left:8px;background:rgba(63,185,80,0.15);color:#3FB950;padding:3px 10px;border-radius:12px;font-weight:600;">Online</span>
+            </h1>
+            <p style="font-size:14px;color:rgba(255,255,255,0.85);margin-bottom:4px;">{{ user_email }}</p>
+            <p style="font-size:15px;color:rgba(255,255,255,0.9);line-height:1.6;max-width:550px;">
+                Your persona profile is loaded into {{ model_name }}. Ask your twin about your
+                tables, pipelines, work schedule, query patterns, or anything about your Databricks identity.
+            </p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
+                {% for trait in primary.traits[:4] %}
+                <span style="background:rgba(255,255,255,0.18);color:white;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:500;">{{ trait }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Archetype Distribution — All 6 archetypes with match percentages -->
+{% if persona and persona.archetype %}
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header" style="font-size:16px;">
+        Persona Distribution — All Archetypes
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:12px;margin-top:8px;">
+        {% for arch in persona.archetype.all %}
+        <div class="arch-card-animated" style="animation-delay:{{ (loop.index0) * 80 }}ms;display:flex;gap:14px;padding:16px;border-radius:12px;border:{{ '2px solid ' + arch.color if loop.index == 1 else '1px solid var(--border)' }};background:{{ 'rgba(255,255,255,0.03)' if loop.index == 1 else 'var(--surface)' }};{{ 'box-shadow:0 0 20px ' + arch.color + '20;' if loop.index == 1 else '' }}">
+            {% set card_avatar = 'pipeline-architect' if 'Pipeline Architect' in arch.name
+                else 'data-explorer' if 'Data Explorer' in arch.name
+                else 'platform-guardian' if 'Platform Guardian' in arch.name
+                else 'dashboard-crafter' if 'Dashboard Crafter' in arch.name
+                else 'ml-alchemist' if 'ML Alchemist' in arch.name
+                else 'cost-optimizer' if 'Cost-Conscious' in arch.name
+                else 'pipeline-architect' %}
+            <div style="width:64px;height:64px;border-radius:12px;overflow:hidden;flex-shrink:0;border:1px solid {{ arch.color }}40;">
+                <img src="{{ url_for('static', filename='avatars/' + card_avatar + '.png') }}"
+                     alt="{{ arch.name }}"
+                     style="width:64px;height:64px;object-fit:cover;display:block;">
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <span style="font-weight:600;font-size:14px;">{{ arch.emoji }} {{ arch.name }}</span>
+                    {% if loop.index == 1 %}
+                    <span style="background:{{ arch.color }};color:white;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Your Type</span>
+                    {% endif %}
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                    <div style="flex:1;height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;">
+                        <div style="height:100%;width:{{ arch.match_pct }}%;background:{{ arch.color }};border-radius:3px;transition:width 0.8s ease;"></div>
+                    </div>
+                    <span style="font-size:13px;font-weight:700;color:{{ arch.color }};min-width:35px;">{{ arch.match_pct }}%</span>
+                </div>
+                <p style="font-size:12px;color:var(--text-muted);line-height:1.4;margin-bottom:6px;">{{ arch.description[:100] }}{% if arch.description|length > 100 %}...{% endif %}</p>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                    {% for trait in arch.traits %}
+                    <span style="background:{{ arch.color }}15;color:{{ arch.color }};padding:2px 8px;border-radius:8px;font-size:11px;font-weight:500;">{{ trait }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-5)" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        AI-Generated System Prompt
+        <!-- Generating spinner — hidden once done -->
+        <span id="promptGenSpinner" style="display:flex;align-items:center;gap:6px;margin-left:10px;font-size:12px;color:var(--chart-5);font-weight:400;">
+            <div class="spinner" style="border-top-color:var(--chart-5);width:13px;height:13px;border-width:2px;flex-shrink:0;"></div>
+            Generating…
+        </span>
+        <span style="flex:1;"></span>
+        <button class="btn btn-secondary" onclick="copyPrompt()" id="copyBtn"
+                style="font-size:12px;padding:6px 12px;" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Copy
+        </button>
+    </div>
+
+    <textarea class="prompt-textarea" id="systemPrompt" readonly
+              placeholder="✨ Claude is crafting your personalised system prompt based on your Databricks behaviour data…"></textarea>
+
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+        <span style="font-size:13px;color:var(--text-muted);">
+            <strong id="charCount">0</strong> chars ·
+            ~<strong id="tokenCount">0</strong> tokens
+        </span>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     CHAT WITH YOUR DIGITAL TWIN
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="card" id="chatSection">
+    <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-2)" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        Chat with Your Digital Twin
+        <span style="flex:1;"></span>
+        <span style="font-size:11px;color:var(--text-muted);font-weight:400;">Powered by {{ model_name }}</span>
+    </div>
+
+    <div id="chatMessages" style="min-height:200px;max-height:500px;overflow-y:auto;margin-bottom:16px;padding:8px 0;">
+        <!-- Suggested starters -->
+        <div id="chatStarters" style="display:flex;flex-wrap:wrap;gap:8px;padding:16px 0;">
+            <button class="chat-starter" onclick="sendStarter(this)">What tables do I work with most?</button>
+            <button class="chat-starter" onclick="sendStarter(this)">Describe my typical workday</button>
+            <button class="chat-starter" onclick="sendStarter(this)">What are my top skills?</button>
+            <button class="chat-starter" onclick="sendStarter(this)">How reliable are my pipelines?</button>
+            <button class="chat-starter" onclick="sendStarter(this)">Who depends on my data?</button>
+            <button class="chat-starter" onclick="sendStarter(this)">What's my biggest strength?</button>
+        </div>
+    </div>
+
+    <div style="display:flex;gap:8px;">
+        <input type="text" id="chatInput" placeholder="Ask your digital twin anything..."
+               style="flex:1;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;outline:none;"
+               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}">
+        <button class="btn btn-primary" onclick="sendChat()" id="chatSendBtn" style="padding:10px 18px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+        </svg>
+        How to Use This Prompt
+    </div>
+    <div style="color:var(--text-muted);font-size:14px;line-height:1.7;">
+        <ol style="padding-left:20px;">
+            <li style="margin-bottom:8px;">
+                <strong style="color:var(--text);">Chat above</strong> with your digital twin directly, or
+            </li>
+            <li style="margin-bottom:8px;">
+                <strong style="color:var(--text);">Copy the system prompt</strong> using the button above.
+            </li>
+            <li style="margin-bottom:8px;">
+                <strong style="color:var(--text);">Open your preferred LLM</strong> (Claude, ChatGPT, etc.).
+            </li>
+            <li style="margin-bottom:8px;">
+                <strong style="color:var(--text);">Paste as the system prompt</strong> (or at the start of a new conversation).
+            </li>
+        </ol>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block head %}
+<style>
+    /* ── Archetype cards slide-in ── */
+    @keyframes slideInLeft {
+        from { opacity: 0; transform: translateX(-20px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    .arch-card-animated {
+        opacity: 0;
+        animation: slideInLeft 0.4s ease forwards;
+    }
+
+    .chat-starter {
+        padding: 8px 16px;
+        border-radius: 20px;
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        color: var(--text-muted);
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .chat-starter:hover {
+        border-color: var(--chart-2);
+        color: var(--text);
+        background: rgba(88,166,255,0.08);
+    }
+    .chat-msg {
+        padding: 10px 14px;
+        border-radius: 12px;
+        max-width: 85%;
+        font-size: 14px;
+        line-height: 1.6;
+        margin-bottom: 10px;
+        animation: cardFadeIn 0.3s ease;
+    }
+    @keyframes cardFadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .chat-msg-user {
+        background: var(--primary);
+        color: white;
+        margin-left: auto;
+        border-bottom-right-radius: 4px;
+    }
+    .chat-msg-assistant {
+        background: var(--surface-2);
+        color: var(--text);
+        margin-right: auto;
+        border-bottom-left-radius: 4px;
+    }
+    .chat-msg-error {
+        background: rgba(248,81,73,0.1);
+        color: var(--error);
+        margin-right: auto;
+        font-size: 13px;
+    }
+    .chat-typing {
+        display: inline-flex;
+        gap: 4px;
+        padding: 12px 16px;
+    }
+    .chat-typing span {
+        width: 6px;
+        height: 6px;
+        background: var(--text-muted);
+        border-radius: 50%;
+        animation: typingBounce 1.2s infinite;
+    }
+    .chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+    .chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingBounce {
+        0%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-6px); }
+    }
+    #chatInput:focus {
+        border-color: var(--chart-2);
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const chatHistory = [];
+
+function copyPrompt() {
+    const textarea = document.getElementById('systemPrompt');
+    textarea.select();
+    navigator.clipboard.writeText(textarea.value).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+        </svg> Copied!`;
+        setTimeout(() => {
+            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg> Copy`;
+        }, 2000);
+    });
+}
+
+// Fallback template prompt (server-rendered) — used if AI generation fails
+const _templateFallback = {{ system_prompt | tojson }};
+
+function updatePromptStats() {
+    const val = document.getElementById('systemPrompt').value;
+    document.getElementById('charCount').textContent = val.length.toLocaleString();
+    document.getElementById('tokenCount').textContent = Math.round(val.length / 4).toLocaleString();
+}
+
+function _streamSystemPrompt() {
+    const textarea = document.getElementById('systemPrompt');
+    const copyBtn  = document.getElementById('copyBtn');
+    const spinner  = document.getElementById('promptGenSpinner');
+
+    textarea.value = '';
+    copyBtn.disabled = true;
+    if (spinner) spinner.style.display = 'flex';
+
+    let accumulated = '';
+
+    fetch('/api/regenerate-system-prompt')
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    try { const d = JSON.parse(text); throw new Error(d.error || 'Request failed'); }
+                    catch(e) { throw new Error('HTTP ' + response.status); }
+                });
+            }
+            const reader  = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            function read() {
+                reader.read().then(({ done, value }) => {
+                    if (done) {
+                        if (spinner) spinner.style.display = 'none';
+                        copyBtn.disabled = false;
+                        updatePromptStats();
+                        return;
+                    }
+                    const text  = decoder.decode(value, { stream: true });
+                    const lines = text.split('\n');
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const data = line.slice(6).trim();
+                        if (data === '[DONE]') continue;
+                        try {
+                            const parsed = JSON.parse(data);
+                            if (parsed.error) {
+                                // LLM error — fall back to template prompt
+                                textarea.value = _templateFallback;
+                                if (spinner) spinner.style.display = 'none';
+                                copyBtn.disabled = false;
+                                updatePromptStats();
+                                return;
+                            }
+                            if (parsed.content) {
+                                accumulated += parsed.content;
+                                textarea.value = accumulated;
+                                textarea.scrollTop = textarea.scrollHeight;
+                            }
+                        } catch(e) {}
+                    }
+                    read();
+                });
+            }
+            read();
+        })
+        .catch(() => {
+            // Network error — fall back to template prompt silently
+            textarea.value = _templateFallback;
+            if (spinner) spinner.style.display = 'none';
+            copyBtn.disabled = false;
+            updatePromptStats();
+        });
+}
+
+// Auto-generate the AI system prompt as soon as the page is ready
+// (skip when no persona data — the fallback prompt is already shown)
+{% if persona %}
+document.addEventListener('DOMContentLoaded', _streamSystemPrompt);
+{% else %}
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('systemPrompt').value = _templateFallback;
+    document.getElementById('promptGenSpinner').style.display = 'none';
+    document.getElementById('copyBtn').disabled = false;
+    updatePromptStats();
+});
+{% endif %}
+
+function sendStarter(btn) {
+    document.getElementById('chatInput').value = btn.textContent;
+    sendChat();
+}
+
+function sendChat() {
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    input.value = '';
+    const container = document.getElementById('chatMessages');
+    const starters = document.getElementById('chatStarters');
+    if (starters) starters.remove();
+
+    // Add user message
+    const userDiv = document.createElement('div');
+    userDiv.className = 'chat-msg chat-msg-user';
+    userDiv.textContent = msg;
+    container.appendChild(userDiv);
+
+    chatHistory.push({role: 'user', content: msg});
+
+    // Add typing indicator
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chat-msg chat-msg-assistant chat-typing';
+    typingDiv.id = 'chatTyping';
+    typingDiv.innerHTML = '<span></span><span></span><span></span>';
+    container.appendChild(typingDiv);
+    container.scrollTop = container.scrollHeight;
+
+    // Disable input while streaming
+    const sendBtn = document.getElementById('chatSendBtn');
+    input.disabled = true;
+    sendBtn.disabled = true;
+
+    // Send to API and stream response
+    fetch('/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({messages: chatHistory}),
+    }).then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    throw new Error(data.error || 'Chat request failed');
+                } catch(e) {
+                    if (e.message && !e.message.includes('JSON')) throw e;
+                    throw new Error(`Chat request failed (HTTP ${response.status}). The model endpoint may be unavailable.`);
+                }
+            });
+        }
+
+        // Remove typing indicator, add assistant message div
+        const typing = document.getElementById('chatTyping');
+        if (typing) typing.remove();
+
+        const assistantDiv = document.createElement('div');
+        assistantDiv.className = 'chat-msg chat-msg-assistant';
+        assistantDiv.textContent = '';
+        container.appendChild(assistantDiv);
+
+        let fullResponse = '';
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        function readStream() {
+            reader.read().then(({done, value}) => {
+                if (done) {
+                    chatHistory.push({role: 'assistant', content: fullResponse});
+                    input.disabled = false;
+                    sendBtn.disabled = false;
+                    input.focus();
+                    return;
+                }
+
+                const text = decoder.decode(value, {stream: true});
+                const lines = text.split('\n');
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const data = line.slice(6).trim();
+                    if (data === '[DONE]') continue;
+                    try {
+                        const parsed = JSON.parse(data);
+                        if (parsed.error) {
+                            assistantDiv.className = 'chat-msg chat-msg-error';
+                            assistantDiv.textContent = 'Error: ' + parsed.error;
+                            input.disabled = false;
+                            sendBtn.disabled = false;
+                            return;
+                        }
+                        if (parsed.content) {
+                            fullResponse += parsed.content;
+                            assistantDiv.textContent = fullResponse;
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    } catch(e) {}
+                }
+                readStream();
+            });
+        }
+        readStream();
+    }).catch(err => {
+        const typing = document.getElementById('chatTyping');
+        if (typing) typing.remove();
+        const errDiv = document.createElement('div');
+        errDiv.className = 'chat-msg chat-msg-error';
+        errDiv.textContent = 'Error: ' + err.message;
+        container.appendChild(errDiv);
+        input.disabled = false;
+        sendBtn.disabled = false;
+    });
+}
+</script>
+{% endblock %}

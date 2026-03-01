@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% block title %}Run Analysis{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Run Digital Persona Analysis</h1>
+    <p>Analyze your Databricks system table data to build a comprehensive persona profile</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
+        </svg>
+        Analysis Engine
+    </div>
+
+    <p style="color:var(--text-muted);font-size:14px;margin-bottom:8px;">
+        Analyzing user: <strong style="color:var(--text);">{{ user_email }}</strong>
+    </p>
+    <p style="color:var(--text-muted);font-size:14px;margin-bottom:20px;">
+        This will query multiple system tables and process the data to build your persona.
+        The analysis runs in the background and typically takes 5-10 minutes.
+    </p>
+
+    <div id="controls">
+        {% if status.status == 'running' %}
+            <button class="btn btn-primary" disabled>
+                <span class="spinner"></span> Analysis Running...
+            </button>
+        {% elif has_data %}
+            <button id="analyzeBtn" class="btn btn-primary" onclick="startAnalysis()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6M1 20v-6h6"/>
+                    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                </svg>
+                Re-run Analysis
+            </button>
+            <a href="/persona" class="btn btn-secondary" style="margin-left:8px;">
+                View Persona
+            </a>
+        {% else %}
+            <button id="analyzeBtn" class="btn btn-primary" onclick="startAnalysis()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
+                </svg>
+                Run Digital Persona Analysis
+            </button>
+        {% endif %}
+    </div>
+
+    <div id="statusArea" style="margin-top:24px;">
+        <div id="progressContainer" style="display:{% if status.status == 'running' %}block{% else %}none{% endif %};">
+            <!-- Fun waiting area -->
+            <div id="waitingArea" style="text-align:center;padding:32px 16px 24px;">
+                <div style="position:relative;width:80px;height:80px;margin:0 auto 20px;">
+                    <!-- Orbiting dots animation -->
+                    <svg width="80" height="80" viewBox="0 0 80 80" style="animation:spinSlow 3s linear infinite;">
+                        <circle cx="40" cy="8" r="5" fill="var(--chart-1)" opacity="0.9"/>
+                        <circle cx="66" cy="22" r="4" fill="var(--chart-2)" opacity="0.7"/>
+                        <circle cx="72" cy="48" r="3.5" fill="var(--chart-3)" opacity="0.6"/>
+                        <circle cx="54" cy="68" r="3" fill="var(--chart-4)" opacity="0.5"/>
+                        <circle cx="26" cy="68" r="3" fill="var(--chart-5)" opacity="0.4"/>
+                        <circle cx="8" cy="48" r="3.5" fill="var(--chart-6)" opacity="0.3"/>
+                    </svg>
+                    <!-- Center icon: magnifying glass on data -->
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="1.5"
+                         style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);">
+                        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+                        <path d="M8 11h6M11 8v6" stroke-width="1.5"/>
+                    </svg>
+                </div>
+                <p style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px;" id="funMessage">
+                    Mining your Databricks footprint...
+                </p>
+                <p style="font-size:13px;color:var(--text-muted);">
+                    Please be patient, this takes a few minutes to analyze all your data across 8 system tables.
+                </p>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span id="statusMessage" style="font-size:14px;color:var(--text-muted);">{{ status.message }}</span>
+                <span id="statusPercent" style="font-size:14px;font-weight:600;">{{ status.progress }}%</span>
+            </div>
+            <div class="progress-bar" style="height:10px;">
+                <div class="progress-bar-fill" id="progressFill" style="width:{{ status.progress }}%;transition:width 1.5s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+            </div>
+            <!-- Step indicators -->
+            <div id="stepIndicators" style="display:flex;gap:4px;margin-top:8px;">
+                <div class="step-dot" data-step="0" style="flex:1;height:3px;border-radius:2px;background:var(--surface-2);transition:background 0.3s;"></div>
+                <div class="step-dot" data-step="1" style="flex:1;height:3px;border-radius:2px;background:var(--surface-2);transition:background 0.3s;"></div>
+                <div class="step-dot" data-step="2" style="flex:1;height:3px;border-radius:2px;background:var(--surface-2);transition:background 0.3s;"></div>
+                <div class="step-dot" data-step="3" style="flex:1;height:3px;border-radius:2px;background:var(--surface-2);transition:background 0.3s;"></div>
+                <div class="step-dot" data-step="4" style="flex:1;height:3px;border-radius:2px;background:var(--surface-2);transition:background 0.3s;"></div>
+                <div class="step-dot" data-step="5" style="flex:1;height:3px;border-radius:2px;background:var(--surface-2);transition:background 0.3s;"></div>
+                <div class="step-dot" data-step="6" style="flex:1;height:3px;border-radius:2px;background:var(--surface-2);transition:background 0.3s;"></div>
+            </div>
+        </div>
+
+        {% if status.status == 'complete' %}
+        <div style="padding:16px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;margin-top:12px;">
+            <p style="color:var(--success);font-weight:600;">Analysis complete!</p>
+            <p style="color:var(--text-muted);font-size:13px;margin-top:4px;">
+                Your persona data has been stored in memory. Navigate to the Persona or Digital Version pages to view results.
+            </p>
+        </div>
+        {% elif status.status == 'error' %}
+        <div style="padding:16px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.3);border-radius:6px;margin-top:12px;">
+            <p style="color:var(--error);font-weight:600;">Analysis failed</p>
+            <p style="color:var(--text-muted);font-size:13px;margin-top:4px;">{{ status.message }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+        </svg>
+        What Gets Analyzed
+    </div>
+    <div class="grid-2">
+        <div>
+            <h4 style="font-size:14px;margin-bottom:8px;">Activity Profile</h4>
+            <ul style="color:var(--text-muted);font-size:13px;list-style:none;">
+                <li style="margin-bottom:4px;">Service usage distribution</li>
+                <li style="margin-bottom:4px;">Daily / hourly / weekly activity patterns</li>
+                <li style="margin-bottom:4px;">Client tools used (UI, API, CLI, etc.)</li>
+                <li style="margin-bottom:4px;">Top actions and behaviors</li>
+            </ul>
+        </div>
+        <div>
+            <h4 style="font-size:14px;margin-bottom:8px;">SQL & Query Profile</h4>
+            <ul style="color:var(--text-muted);font-size:13px;list-style:none;">
+                <li style="margin-bottom:4px;">Statement type distribution</li>
+                <li style="margin-bottom:4px;">Query complexity analysis</li>
+                <li style="margin-bottom:4px;">Error rates and success patterns</li>
+                <li style="margin-bottom:4px;">Query sources (notebooks, jobs, etc.)</li>
+            </ul>
+        </div>
+        <div>
+            <h4 style="font-size:14px;margin-bottom:8px;">Data & Lineage</h4>
+            <ul style="color:var(--text-muted);font-size:13px;list-style:none;">
+                <li style="margin-bottom:4px;">Tables read and written</li>
+                <li style="margin-bottom:4px;">Catalog and schema usage</li>
+                <li style="margin-bottom:4px;">Downstream data consumers</li>
+                <li style="margin-bottom:4px;">Upstream dependencies</li>
+            </ul>
+        </div>
+        <div>
+            <h4 style="font-size:14px;margin-bottom:8px;">Jobs & Compute</h4>
+            <ul style="color:var(--text-muted);font-size:13px;list-style:none;">
+                <li style="margin-bottom:4px;">Job ownership and scheduling</li>
+                <li style="margin-bottom:4px;">Job success rates</li>
+                <li style="margin-bottom:4px;">Cluster configurations</li>
+                <li style="margin-bottom:4px;">Collaboration network</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    @keyframes spinSlow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let pollInterval = null;
+let messageInterval = null;
+let smoothInterval = null;
+let currentDisplayPct = 0;
+let targetPct = 0;
+const funMessages = [
+    "Mining your Databricks footprint...",
+    "Scanning millions of audit events...",
+    "Discovering your SQL superpowers...",
+    "Mapping your data universe...",
+    "Tracing your pipeline architecture...",
+    "Profiling your query patterns...",
+    "Analyzing your collaboration network...",
+    "Calculating your compute preferences...",
+    "Almost there, building your profile...",
+];
+// Step colors for the step indicators
+const stepColors = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)', 'var(--success)'];
+
+async function startAnalysis() {
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Starting...';
+
+    try {
+        const resp = await fetch('/api/run-analysis', { method: 'POST' });
+        const data = await resp.json();
+
+        if (data.status === 'started' || data.status === 'already_running') {
+            document.getElementById('progressContainer').style.display = 'block';
+            startFunMessages();
+            startPolling();
+        }
+    } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = 'Run Digital Persona Analysis';
+        alert('Failed to start analysis: ' + err.message);
+    }
+}
+
+function updateProgress(pct, message) {
+    targetPct = pct;
+    document.getElementById('statusMessage').textContent = message;
+    // Smooth CSS transition handles the bar animation
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('statusPercent').textContent = Math.round(pct) + '%';
+    // Light up step dots based on progress
+    const steps = document.querySelectorAll('.step-dot');
+    const stepThresholds = [3, 14, 28, 42, 56, 70, 85];
+    steps.forEach((dot, i) => {
+        if (pct >= stepThresholds[i]) {
+            dot.style.background = stepColors[i];
+        }
+    });
+}
+
+function startSmoothProgress() {
+    // Slowly creep the bar forward between polls to avoid "stuck" feeling
+    if (smoothInterval) clearInterval(smoothInterval);
+    smoothInterval = setInterval(() => {
+        if (currentDisplayPct < targetPct) {
+            currentDisplayPct = Math.min(currentDisplayPct + 0.3, targetPct);
+        } else if (targetPct < 100 && currentDisplayPct < targetPct + 3) {
+            // Creep slightly ahead to give perception of movement
+            currentDisplayPct = Math.min(currentDisplayPct + 0.1, targetPct + 3, 99);
+        }
+    }, 200);
+}
+
+function startPolling() {
+    if (pollInterval) clearInterval(pollInterval);
+    startSmoothProgress();
+    pollInterval = setInterval(async () => {
+        try {
+            const resp = await fetch('/api/analysis-status');
+            const data = await resp.json();
+
+            updateProgress(data.progress, data.message);
+
+            if (data.status === 'complete') {
+                clearInterval(pollInterval);
+                if (smoothInterval) clearInterval(smoothInterval);
+                updateProgress(100, 'Analysis complete!');
+                stopFunMessages();
+                document.getElementById('controls').innerHTML = `
+                    <button class="btn btn-primary" onclick="startAnalysis()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6M1 20v-6h6"/>
+                            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                        </svg>
+                        Re-run Analysis
+                    </button>
+                    <a href="/persona" class="btn btn-secondary" style="margin-left:8px;">View Persona</a>
+                `;
+                document.getElementById('statusArea').innerHTML += `
+                    <div style="padding:16px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;margin-top:12px;">
+                        <p style="color:var(--success);font-weight:600;">Analysis complete!</p>
+                        <p style="color:var(--text-muted);font-size:13px;margin-top:4px;">
+                            Your persona data is ready. Navigate to the <a href="/persona" style="color:var(--info);">Persona</a>
+                            or <a href="/digital-version" style="color:var(--info);">Digital Version</a> pages.
+                        </p>
+                    </div>
+                `;
+            } else if (data.status === 'error') {
+                clearInterval(pollInterval);
+                if (smoothInterval) clearInterval(smoothInterval);
+                stopFunMessages();
+                document.getElementById('controls').innerHTML = `
+                    <button class="btn btn-primary" onclick="startAnalysis()">Retry Analysis</button>
+                `;
+            }
+        } catch (err) {
+            console.error('Poll error:', err);
+        }
+    }, 2000);
+}
+
+function startFunMessages() {
+    let idx = 0;
+    const el = document.getElementById('funMessage');
+    if (!el) return;
+    if (messageInterval) clearInterval(messageInterval);
+    messageInterval = setInterval(() => {
+        idx = (idx + 1) % funMessages.length;
+        el.style.opacity = 0;
+        setTimeout(() => {
+            el.textContent = funMessages[idx];
+            el.style.opacity = 1;
+        }, 300);
+    }, 4000);
+    el.style.transition = 'opacity 0.3s ease';
+}
+
+function stopFunMessages() {
+    if (messageInterval) clearInterval(messageInterval);
+    const area = document.getElementById('waitingArea');
+    if (area) area.style.display = 'none';
+}
+
+// Auto-start polling if analysis is already running
+{% if status.status == 'running' %}
+startFunMessages();
+startPolling();
+{% endif %}
+</script>
+{% endblock %}

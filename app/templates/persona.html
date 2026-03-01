@@ -1,0 +1,3060 @@
+{% extends "base.html" %}
+{% block title %}Persona{% endblock %}
+
+{% block head %}
+<style>
+    /* KPI metric card styles */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+    }
+    .kpi-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        transition: border-color 0.2s;
+    }
+    .kpi-card:hover {
+        border-color: var(--text-muted);
+    }
+    .kpi-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 2px;
+    }
+    .kpi-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text);
+        line-height: 1.1;
+    }
+    .kpi-label {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+    .kpi-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 10px;
+        width: fit-content;
+    }
+    .kpi-section-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+        margin-top: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .kpi-section-title:first-child { margin-top: 0; }
+    .kpi-section-title svg { opacity: 0.7; }
+
+    /* ── Staggered KPI card fade-in ── */
+    @keyframes cardFadeIn {
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .kpi-card {
+        opacity: 0;
+        animation: cardFadeIn 0.5s ease forwards;
+    }
+
+    /* ── Count-up animation helper ── */
+    .kpi-value[data-target] {
+        transition: none;
+    }
+
+    /* ── KPI hover tooltip ── */
+    .kpi-card {
+        position: relative;
+    }
+    .kpi-tooltip {
+        visibility: hidden;
+        opacity: 0;
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--surface-2);
+        color: var(--text);
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        white-space: nowrap;
+        border: 1px solid var(--border);
+        z-index: 10;
+        pointer-events: none;
+        transition: opacity 0.2s, visibility 0.2s;
+    }
+    .kpi-tooltip::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 5px solid transparent;
+        border-top-color: var(--surface-2);
+    }
+    .kpi-card:hover .kpi-tooltip {
+        visibility: visible;
+        opacity: 1;
+    }
+
+    /* ── Confetti canvas ── */
+    #confettiCanvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        pointer-events: none;
+        z-index: 9999;
+    }
+
+    /* ── Archetype cards slide-in ── */
+    @keyframes slideInLeft {
+        from { opacity: 0; transform: translateX(-20px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    .arch-card-animated {
+        opacity: 0;
+        animation: slideInLeft 0.4s ease forwards;
+    }
+
+    /* ── Achievement badge cards ── */
+    .badge-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        transition: border-color 0.2s, transform 0.2s;
+        opacity: 0;
+        animation: cardFadeIn 0.4s ease forwards;
+    }
+    .badge-card:hover {
+        border-color: var(--chart-4);
+        transform: translateY(-2px);
+    }
+    .badge-icon {
+        font-size: 24px;
+        flex-shrink: 0;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(210,153,34,0.1);
+        border-radius: 8px;
+    }
+    .badge-card.rank-badge {
+        border-color: rgba(210,153,34,0.4);
+        background: linear-gradient(135deg, rgba(210,153,34,0.08), var(--surface-2));
+    }
+    .badge-card.rank-badge:hover {
+        border-color: var(--chart-4);
+    }
+
+    /* ── Workspace comparison cards ── */
+    .compare-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .compare-label {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .compare-values {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+    }
+    .compare-you {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--text);
+    }
+    .compare-vs {
+        font-size: 11px;
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+    .compare-avg {
+        font-size: 14px;
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+    .compare-indicator {
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .compare-up { color: var(--success); }
+    .compare-down { color: var(--chart-6); }
+
+    /* ── Engagement Heatmap ── */
+    .heatmap-grid {
+        display: grid;
+        grid-template-columns: 40px repeat(24, 1fr);
+        gap: 2px;
+        font-size: 11px;
+    }
+    .heatmap-cell {
+        aspect-ratio: 1;
+        border-radius: 3px;
+        min-width: 0;
+        transition: transform 0.15s;
+    }
+    .heatmap-cell:hover {
+        transform: scale(1.5);
+        z-index: 2;
+        position: relative;
+    }
+    .heatmap-label {
+        display: flex;
+        align-items: center;
+        color: var(--text-muted);
+        font-size: 11px;
+        font-weight: 500;
+    }
+    .heatmap-hour-labels {
+        display: grid;
+        grid-template-columns: 40px repeat(24, 1fr);
+        gap: 2px;
+        margin-bottom: 4px;
+    }
+    .heatmap-hour-labels span {
+        text-align: center;
+        font-size: 10px;
+        color: var(--text-muted);
+    }
+
+    /* ── Reliability Gauge ── */
+    .gauge-container {
+        display: flex;
+        align-items: center;
+        gap: 40px;
+        flex-wrap: wrap;
+    }
+    .gauge-svg {
+        width: 180px;
+        height: 180px;
+        flex-shrink: 0;
+    }
+    .gauge-ring-bg {
+        fill: none;
+        stroke: var(--surface-2);
+        stroke-width: 12;
+    }
+    .gauge-ring-fill {
+        fill: none;
+        stroke-width: 12;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 1.5s ease;
+    }
+    .gauge-text {
+        fill: var(--text);
+        font-size: 36px;
+        font-weight: 800;
+        text-anchor: middle;
+        dominant-baseline: central;
+    }
+    .gauge-label {
+        fill: var(--text-muted);
+        font-size: 12px;
+        text-anchor: middle;
+    }
+    .gauge-components {
+        flex: 1;
+        min-width: 200px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .gauge-component {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .gauge-component-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+    .gauge-component-bar {
+        height: 6px;
+        background: var(--surface-2);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .gauge-component-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 1s ease;
+    }
+    /* ── Streak KPIs ── */
+    .streak-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+    .streak-card {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+        text-align: center;
+    }
+    .streak-value {
+        font-size: 28px;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1;
+    }
+    .streak-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       WOW: Activity Signal — animated service node canvas
+       ══════════════════════════════════════════════════════════ */
+    .signal-canvas-wrap {
+        width: 100%;
+        height: 260px;
+        position: relative;
+        border-radius: 10px;
+        overflow: hidden;
+        background: radial-gradient(ellipse at 50% 60%, #0d1826 0%, var(--bg) 80%);
+    }
+    .signal-canvas-wrap canvas {
+        display: block;
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       WOW: Hexagonal Expertise Area cards
+       ══════════════════════════════════════════════════════════ */
+    @keyframes hexPop {
+        from { opacity: 0; transform: scale(0.7) rotate(-5deg); }
+        to   { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+    .hex-expertise-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 4px 0 8px;
+    }
+    .hex-expertise-card {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 22px 8px 18px;
+        clip-path: polygon(10px 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0% 50%);
+        background: linear-gradient(135deg, var(--hex-color, #FF3621) 0%, transparent 100%);
+        background-color: var(--surface-2);
+        border: none;
+        cursor: default;
+        opacity: 0;
+        animation: hexPop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards;
+        transition: filter 0.2s, transform 0.2s;
+        min-width: 120px;
+        text-align: center;
+    }
+    .hex-expertise-card:hover {
+        filter: brightness(1.3) drop-shadow(0 0 8px var(--hex-color, #FF3621));
+        transform: scale(1.05) translateY(-2px);
+    }
+    .hex-expertise-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       Improved h-bar: gradient fill + glow on hover
+       ══════════════════════════════════════════════════════════ */
+    .h-bar-fill {
+        transition: width 1.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s;
+    }
+    .h-bar:hover .h-bar-fill {
+        filter: brightness(1.2);
+        box-shadow: 0 0 8px currentColor;
+    }
+    .h-bar-fill {
+        position: relative;
+        overflow: hidden;
+    }
+    .h-bar-fill::after {
+        content: '';
+        position: absolute;
+        top: 0; left: -100%; width: 100%; height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        animation: shimmer 2.5s infinite;
+    }
+    @keyframes shimmer {
+        from { left: -100%; }
+        to   { left: 100%; }
+    }
+
+    /* Clock chart alignment */
+    .clock-chart-wrap {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        padding: 8px 0;
+    }
+
+    /* Wave chart container */
+    .wave-chart-wrap {
+        width: 100%;
+        height: 200px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if not persona %}
+<div class="empty-state">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+    </svg>
+    <h3>No Persona Data Yet</h3>
+    <p style="margin-bottom:20px;">Run the analysis first to generate your persona.</p>
+    <a href="/analyze" class="btn btn-primary">Run Analysis</a>
+</div>
+{% else %}
+
+<!-- Export toolbar -->
+<div style="display:flex;justify-content:flex-end;margin-bottom:16px;gap:8px;">
+    <a id="exportHtmlBtn" href="/api/export-persona"
+       class="btn btn-secondary"
+       style="font-size:13px;padding:8px 16px;gap:6px;"
+       title="Download persona as a self-contained HTML file (works offline)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Export as HTML
+    </a>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ARCHETYPE HERO BANNER — with large distinctive avatar
+     ═══════════════════════════════════════════════════════════════════════ -->
+{% if persona.archetype %}
+{% set primary = persona.archetype.primary %}
+<div class="archetype-hero" style="background:{{ primary.gradient }};border-radius:16px;padding:40px 36px;margin-bottom:24px;position:relative;overflow:hidden;">
+    <!-- Background decorative circles -->
+    <div style="position:absolute;top:-40%;right:-10%;width:350px;height:350px;border-radius:50%;background:rgba(255,255,255,0.06);"></div>
+    <div style="position:absolute;bottom:-30%;left:-5%;width:250px;height:250px;border-radius:50%;background:rgba(255,255,255,0.04);"></div>
+    <div style="position:relative;z-index:1;display:flex;align-items:flex-start;gap:28px;">
+        <!-- Large archetype avatar (120px) -->
+        {% set hero_avatar = 'pipeline-architect' if 'Pipeline Architect' in primary.name
+            else 'data-explorer' if 'Data Explorer' in primary.name
+            else 'platform-guardian' if 'Platform Guardian' in primary.name
+            else 'dashboard-crafter' if 'Dashboard Crafter' in primary.name
+            else 'ml-alchemist' if 'ML Alchemist' in primary.name
+            else 'cost-optimizer' if 'Cost-Conscious' in primary.name
+            else 'pipeline-architect' %}
+        <div style="width:120px;height:120px;border-radius:20px;overflow:hidden;flex-shrink:0;border:2px solid rgba(255,255,255,0.2);box-shadow:0 8px 24px rgba(0,0,0,0.3);">
+            <img src="{{ url_for('static', filename='avatars/' + hero_avatar + '.png') }}"
+                 alt="{{ primary.name }}"
+                 style="width:120px;height:120px;object-fit:cover;display:block;">
+        </div>
+        <div>
+            <div style="font-size:13px;text-transform:uppercase;letter-spacing:2px;opacity:0.7;color:white;margin-bottom:4px;">Your Databricks Persona</div>
+            <h1 style="font-size:2em;font-weight:800;color:white;margin-bottom:4px;">{{ primary.emoji }} {{ primary.name }}</h1>
+            <p style="font-size:14px;color:rgba(255,255,255,0.85);margin-bottom:16px;">{{ user_email }}</p>
+            <p style="font-size:15px;color:rgba(255,255,255,0.9);line-height:1.6;max-width:600px;">{{ primary.description }}</p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;">
+                {% for trait in primary.traits %}
+                <span style="background:rgba(255,255,255,0.18);color:white;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:500;backdrop-filter:blur(4px);">{{ trait }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- All 6 Archetype Cards — with unique avatars -->
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header" style="font-size:16px;">
+        Persona Distribution — All Archetypes
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:12px;margin-top:8px;">
+        {% for arch in persona.archetype.all %}
+        <div class="arch-card-animated" style="animation-delay:{{ (loop.index0) * 80 }}ms;display:flex;gap:14px;padding:16px;border-radius:12px;border:{{ '2px solid ' + arch.color if loop.index == 1 else '1px solid var(--border)' }};background:{{ 'rgba(255,255,255,0.03)' if loop.index == 1 else 'var(--surface)' }};{{ 'box-shadow:0 0 20px ' + arch.color + '20;' if loop.index == 1 else '' }}">
+            <!-- Archetype avatar (64px for cards) -->
+            {% set card_avatar = 'pipeline-architect' if 'Pipeline Architect' in arch.name
+                else 'data-explorer' if 'Data Explorer' in arch.name
+                else 'platform-guardian' if 'Platform Guardian' in arch.name
+                else 'dashboard-crafter' if 'Dashboard Crafter' in arch.name
+                else 'ml-alchemist' if 'ML Alchemist' in arch.name
+                else 'cost-optimizer' if 'Cost-Conscious' in arch.name
+                else 'pipeline-architect' %}
+            <div style="width:64px;height:64px;border-radius:12px;overflow:hidden;flex-shrink:0;border:1px solid {{ arch.color }}40;">
+                <img src="{{ url_for('static', filename='avatars/' + card_avatar + '.png') }}"
+                     alt="{{ arch.name }}"
+                     style="width:64px;height:64px;object-fit:cover;display:block;">
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <span style="font-weight:600;font-size:14px;">{{ arch.emoji }} {{ arch.name }}</span>
+                    {% if loop.index == 1 %}
+                    <span style="background:{{ arch.color }};color:white;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Your Type</span>
+                    {% endif %}
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                    <div style="flex:1;height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;">
+                        <div style="height:100%;width:{{ arch.match_pct }}%;background:{{ arch.color }};border-radius:3px;transition:width 0.8s ease;"></div>
+                    </div>
+                    <span style="font-size:13px;font-weight:700;color:{{ arch.color }};min-width:35px;">{{ arch.match_pct }}%</span>
+                </div>
+                <p style="font-size:12px;color:var(--text-muted);line-height:1.4;margin-bottom:6px;">{{ arch.description[:100] }}{% if arch.description|length > 100 %}...{% endif %}</p>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                    {% for trait in arch.traits %}
+                    <span style="background:{{ arch.color }}15;color:{{ arch.color }};padding:2px 8px;border-radius:8px;font-size:11px;font-weight:500;">{{ trait }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- ── Radar / Spider Chart ── -->
+    <div style="margin-top:16px;display:flex;justify-content:center;">
+        <div id="archetypeRadar" style="width:380px;height:380px;"></div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     WOW VISUALIZATION — Activity Signal (animated particle node canvas)
+     Shows the user's top services as glowing, floating, interconnected orbs
+     ═══════════════════════════════════════════════════════════════════════ -->
+{% if persona.activity and persona.activity.services %}
+<div class="card" style="margin-bottom:24px;padding:16px 20px;">
+    <div class="card-header" style="margin-bottom:12px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-3)" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+        Activity Signal
+        <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:6px;">— your platform activity mapped as a living signal network</span>
+    </div>
+    <div class="signal-canvas-wrap" id="activitySignalWrap">
+        <canvas id="activitySignalCanvas"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- Expertise Areas — Hexagonal Skill Cards -->
+{% if persona.summary and persona.summary.expertise_areas %}
+{% set primary_color = persona.archetype.primary.color if persona.archetype and persona.archetype.primary else '#FF3621' %}
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{ primary_color }}" stroke-width="2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+        Expertise Areas
+    </div>
+    <div class="hex-expertise-grid">
+        {% for e in persona.summary.expertise_areas %}
+        <div class="hex-expertise-card"
+             style="--hex-color:{{ primary_color }};animation-delay:{{ loop.index0 * 70 }}ms;background:linear-gradient(135deg,{{ primary_color }}22 0%,var(--surface-2) 60%);">
+            <span class="hex-expertise-label">{{ e }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ACHIEVEMENTS & BADGES
+     ═══════════════════════════════════════════════════════════════════════ -->
+{% if persona.badges %}
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-4)" stroke-width="2">
+            <circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>
+        </svg>
+        Achievements
+        <span style="background:rgba(210,153,34,0.15);color:var(--chart-4);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:700;margin-left:4px;">{{ persona.badges|length }} earned</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:10px;">
+        {% for badge in persona.badges %}
+        <div class="badge-card{{ ' rank-badge' if badge.rank is defined and badge.rank }}" style="animation-delay:{{ loop.index0 * 60 }}ms;" title="{{ badge.description }}">
+            <span class="badge-icon">{{ badge.icon }}</span>
+            <div>
+                <div style="font-weight:600;font-size:13px;color:var(--text);">{{ badge.name }}</div>
+                <div style="font-size:11px;color:var(--text-muted);line-height:1.3;">{{ badge.description }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     DATA HEALTH — Diagnostic: show which data sources have data
+     ═══════════════════════════════════════════════════════════════════════ -->
+{% if persona.data_health and persona.data_health.sections %}
+{% set ok_count = persona.data_health.sections|selectattr('status', 'equalto', 'ok')|list|length %}
+{% set total_count = persona.data_health.sections|length %}
+{% set has_issues = ok_count < total_count %}
+{% if has_issues %}
+<div class="card" style="margin-bottom:16px;border-color:{% if ok_count == 0 %}var(--error){% else %}var(--warning){% endif %};">
+    <div class="card-header" style="font-size:14px;cursor:pointer;" onclick="document.getElementById('healthDetail').style.display = document.getElementById('healthDetail').style.display === 'none' ? 'block' : 'none';">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{% if ok_count == 0 %}var(--error){% else %}var(--warning){% endif %}" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        Data Collection: {{ ok_count }}/{{ total_count }} sources returned data
+        <span style="flex:1;"></span>
+        <span style="font-size:11px;color:var(--text-muted);font-weight:400;">Click to expand</span>
+    </div>
+    <div id="healthDetail" style="display:none;margin-top:8px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:6px;">
+            {% for s in persona.data_health.sections %}
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:var(--surface);border:1px solid var(--border);font-size:13px;">
+                {% if s.status == 'ok' %}
+                <span style="color:var(--success);">&#10003;</span>
+                {% elif s.status == 'error' %}
+                <span style="color:var(--error);">&#10007;</span>
+                {% else %}
+                <span style="color:var(--warning);">&#9888;</span>
+                {% endif %}
+                <span style="font-weight:600;">{{ s.label }}</span>
+                <span style="color:var(--text-muted);font-size:11px;margin-left:auto;">{{ s.source_table }}</span>
+                {% if s.detail %}
+                <div style="font-size:11px;color:var(--error);grid-column:1/-1;word-break:break-all;">{{ s.detail[:120] }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:10px;">
+            Empty sections usually mean: (1) your PAT/SP lacks access to that system table, or
+            (2) no matching data for your email in the lookback window. Check with:
+            <code>SELECT * FROM system.access.audit WHERE user_identity.email = 'your@email' LIMIT 5</code>
+        </p>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     KPI DASHBOARD — Rich metrics organized by category
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header" style="font-size:16px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-1)" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>
+        </svg>
+        Key Metrics Dashboard
+    </div>
+
+    <!-- ── Core Activity ── -->
+    <div class="kpi-section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--chart-1)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Platform Activity
+    </div>
+    <div class="kpi-grid">
+        {% if persona.activity and persona.activity.summary %}
+        {% set stats = persona.activity.summary[0] if persona.activity.summary else {} %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(255,54,33,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-1)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <div class="kpi-value">{{ '{:,}'.format(stats.total_events|default(0)) }}</div>
+            <div class="kpi-label">Total Platform Events</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(88,166,255,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-2)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div class="kpi-value">{{ stats.active_days|default(0) }}</div>
+            <div class="kpi-label">Active Days ({{ persona.summary.lookback_days|default(90) }}d window)</div>
+        </div>
+        {% endif %}
+
+        {% if persona.activity and persona.activity.services %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(63,185,80,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-3)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <div class="kpi-value">{{ persona.activity.services|length }}</div>
+            <div class="kpi-label">Services Used</div>
+        </div>
+        {% endif %}
+
+        {% if persona.activity and persona.activity.clients %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(210,153,34,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-4)" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            </div>
+            <div class="kpi-value">{{ persona.activity.clients|length }}</div>
+            <div class="kpi-label">Client Tools</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ── SQL & Query Metrics ── -->
+    {% if persona.queries %}
+    <div class="kpi-section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--chart-2)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        SQL & Query Performance
+    </div>
+    <div class="kpi-grid">
+        {% if persona.queries.error_stats %}
+        {% set es = persona.queries.error_stats[0] if persona.queries.error_stats else {} %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(88,166,255,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-2)" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </div>
+            <div class="kpi-value">{{ '{:,}'.format(es.total_queries|default(0)) }}</div>
+            <div class="kpi-label">SQL Queries Run</div>
+        </div>
+        {% if es.total_queries and es.total_queries > 0 %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(63,185,80,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            {% set success_rate = ((es.successful|default(0)) / es.total_queries * 100)|round(1) %}
+            <div class="kpi-value">{{ success_rate }}%</div>
+            <div class="kpi-label">Query Success Rate</div>
+            <div class="kpi-badge" style="background:{% if success_rate >= 95 %}rgba(63,185,80,0.15);color:var(--success){% elif success_rate >= 80 %}rgba(210,153,34,0.15);color:var(--warning){% else %}rgba(248,81,73,0.15);color:var(--error){% endif %};">
+                {% if success_rate >= 95 %}Excellent{% elif success_rate >= 80 %}Good{% else %}Needs attention{% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        {% if persona.queries.statement_types %}
+        {% set total_q = persona.queries.statement_types|sum(attribute='query_count') %}
+        {% set select_q = namespace(val=0) %}
+        {% set write_q = namespace(val=0) %}
+        {% for s in persona.queries.statement_types %}
+            {% if s.statement_type == 'SELECT' %}{% set select_q.val = s.query_count %}{% endif %}
+            {% if s.statement_type in ['INSERT', 'MERGE', 'CREATE_TABLE_AS_SELECT'] %}{% set write_q.val = write_q.val + s.query_count %}{% endif %}
+        {% endfor %}
+        {% if total_q > 0 %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(188,140,255,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-5)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            </div>
+            <div class="kpi-value">{{ (select_q.val / total_q * 100)|round|int }}%</div>
+            <div class="kpi-label">Read (SELECT) Ratio</div>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        {% if persona.queries.complexity %}
+        {% set total_cx = persona.queries.complexity|sum(attribute='count') %}
+        {% set heavy_cx = namespace(val=0) %}
+        {% for c in persona.queries.complexity %}
+            {% if 'Heavy' in c.complexity or 'Extreme' in c.complexity %}{% set heavy_cx.val = heavy_cx.val + c.count %}{% endif %}
+        {% endfor %}
+        {% if total_cx > 0 %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(247,120,186,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-6)" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <div class="kpi-value">{{ (heavy_cx.val / total_cx * 100)|round|int }}%</div>
+            <div class="kpi-label">Heavy Queries (>10s)</div>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ── Engineering & Pipeline Metrics ── -->
+    {% if persona.jobs and (persona.jobs.owned_jobs or persona.jobs.job_runs) %}
+    <div class="kpi-section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--chart-3)" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        Engineering & Pipelines
+    </div>
+    <div class="kpi-grid">
+        {% if persona.jobs.owned_jobs %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(63,185,80,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-3)" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            </div>
+            <div class="kpi-value">{{ persona.jobs.owned_jobs|length }}</div>
+            <div class="kpi-label">Workflows Owned</div>
+        </div>
+        {% set scheduled = namespace(val=0) %}
+        {% for j in persona.jobs.owned_jobs %}
+            {% if j.schedule and j.schedule != 'None' %}{% set scheduled.val = scheduled.val + 1 %}{% endif %}
+        {% endfor %}
+        {% if scheduled.val > 0 %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(210,153,34,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-4)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="kpi-value">{{ scheduled.val }}</div>
+            <div class="kpi-label">Scheduled Jobs (CRON)</div>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        {% if persona.jobs.job_runs %}
+        {% set total_runs = persona.jobs.job_runs|sum(attribute='total_runs') %}
+        {% set total_successes = namespace(val=0) %}
+        {% for jr in persona.jobs.job_runs %}
+            {% set total_successes.val = total_successes.val + jr.successes|default(0) %}
+        {% endfor %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(88,166,255,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-2)" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+            </div>
+            <div class="kpi-value">{{ '{:,}'.format(total_runs) }}</div>
+            <div class="kpi-label">Total Job Runs</div>
+        </div>
+        {% if total_runs > 0 %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:{% if (total_successes.val / total_runs * 100) >= 95 %}rgba(63,185,80,0.15){% else %}rgba(210,153,34,0.15){% endif %};">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{% if (total_successes.val / total_runs * 100) >= 95 %}var(--success){% else %}var(--warning){% endif %}" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            {% set pipeline_rate = (total_successes.val / total_runs * 100)|round(1) %}
+            <div class="kpi-value">{{ pipeline_rate }}%</div>
+            <div class="kpi-label">Pipeline Reliability</div>
+            <div class="kpi-badge" style="background:{% if pipeline_rate >= 95 %}rgba(63,185,80,0.15);color:var(--success){% elif pipeline_rate >= 80 %}rgba(210,153,34,0.15);color:var(--warning){% else %}rgba(248,81,73,0.15);color:var(--error){% endif %};">
+                {% if pipeline_rate >= 95 %}Rock solid{% elif pipeline_rate >= 80 %}Stable{% else %}Needs work{% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ── Data & Lineage Metrics ── -->
+    {% if persona.lineage %}
+    <div class="kpi-section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--chart-5)" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        Data & Lineage
+    </div>
+    <div class="kpi-grid">
+        {% if persona.lineage.tables_read %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(188,140,255,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-5)" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </div>
+            <div class="kpi-value">{{ persona.lineage.tables_read|length }}</div>
+            <div class="kpi-label">Tables Read (unique)</div>
+        </div>
+        {% endif %}
+
+        {% if persona.lineage.tables_written %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(255,54,33,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-1)" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+            </div>
+            <div class="kpi-value">{{ persona.lineage.tables_written|length }}</div>
+            <div class="kpi-label">Tables Written (unique)</div>
+        </div>
+        {% endif %}
+
+        {% if persona.lineage.catalog_usage %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(210,153,34,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-4)" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div class="kpi-value">{{ persona.lineage.catalog_usage|length }}</div>
+            <div class="kpi-label">Catalogs Accessed</div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ── Collaboration Metrics ── -->
+    {% if persona.collaboration and (persona.collaboration.downstream_consumers or persona.collaboration.upstream_dependencies) %}
+    <div class="kpi-section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--chart-6)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Collaboration Network
+    </div>
+    <div class="kpi-grid">
+        {% if persona.collaboration.downstream_consumers %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(247,120,186,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-6)" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+            </div>
+            <div class="kpi-value">{{ persona.collaboration.downstream_consumers|length }}</div>
+            <div class="kpi-label">Downstream Consumers</div>
+        </div>
+        {% endif %}
+
+        {% if persona.collaboration.upstream_dependencies %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(188,140,255,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-5)" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+            </div>
+            <div class="kpi-value">{{ persona.collaboration.upstream_dependencies|length }}</div>
+            <div class="kpi-label">Upstream Dependencies</div>
+        </div>
+        {% endif %}
+
+        {% set total_collab = (persona.collaboration.downstream_consumers|default([])|length) + (persona.collaboration.upstream_dependencies|default([])|length) %}
+        {% if total_collab > 0 %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(88,166,255,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-2)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="kpi-value">{{ total_collab }}</div>
+            <div class="kpi-label">Total Collaborators</div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ── Compute Metrics ── -->
+    {% if persona.compute and persona.compute.clusters %}
+    <div class="kpi-section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--chart-4)" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        Compute Resources
+    </div>
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(210,153,34,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-4)" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+            </div>
+            <div class="kpi-value">{{ persona.compute.clusters|length }}</div>
+            <div class="kpi-label">Clusters</div>
+        </div>
+
+        {% set ctypes = {} %}
+        {% for c in persona.compute.clusters %}
+            {% if c.cluster_type %}
+                {% if ctypes.update({c.cluster_type: (ctypes.get(c.cluster_type, 0) + 1)}) %}{% endif %}
+            {% endif %}
+        {% endfor %}
+        {% if ctypes %}
+        {% for ctype, cnt in ctypes.items() %}
+        {% if loop.index <= 2 %}
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(88,166,255,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-2)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            </div>
+            <div class="kpi-value">{{ cnt }}</div>
+            <div class="kpi-label">{{ ctype }} Clusters</div>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     WORKSPACE COMPARISON — How Do You Compare?
+     ═══════════════════════════════════════════════════════════════════════ -->
+{% if persona.comparison and persona.comparison.workspace_users %}
+{% set comp = persona.comparison %}
+{% set stats = persona.activity.summary[0] if persona.activity and persona.activity.summary else {} %}
+{% set es = persona.queries.error_stats[0] if persona.queries and persona.queries.error_stats else {} %}
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-6)" stroke-width="2">
+            <path d="M18 20V10M12 20V4M6 20v-6"/>
+        </svg>
+        How You Compare
+        <span style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:8px;">vs. {{ comp.workspace_users }} workspace users</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:12px;">
+        {% set user_events = stats.total_events|default(0) %}
+        {% set avg_events = comp.avg_events_per_user|default(1) %}
+        {% if avg_events > 0 %}
+        <div class="compare-card">
+            <div class="compare-label">Platform Events</div>
+            <div class="compare-values">
+                <span class="compare-you">{{ '{:,}'.format(user_events) }}</span>
+                <span class="compare-vs">vs</span>
+                <span class="compare-avg">{{ '{:,}'.format(avg_events) }} avg</span>
+            </div>
+            {% set pct_diff = ((user_events - avg_events) / avg_events * 100)|round|int %}
+            <div class="compare-indicator {% if pct_diff >= 0 %}compare-up{% else %}compare-down{% endif %}">
+                {% if pct_diff >= 0 %}&#9650;{% else %}&#9660;{% endif %} {{ pct_diff|abs }}% {{ 'above' if pct_diff >= 0 else 'below' }} average
+            </div>
+        </div>
+        {% endif %}
+
+        {% set user_days = stats.active_days|default(0) %}
+        {% set avg_days = comp.avg_active_days|default(1) %}
+        {% if avg_days > 0 %}
+        <div class="compare-card">
+            <div class="compare-label">Active Days</div>
+            <div class="compare-values">
+                <span class="compare-you">{{ user_days }}</span>
+                <span class="compare-vs">vs</span>
+                <span class="compare-avg">{{ avg_days }} avg</span>
+            </div>
+            {% set pct_diff = ((user_days - avg_days) / avg_days * 100)|round|int %}
+            <div class="compare-indicator {% if pct_diff >= 0 %}compare-up{% else %}compare-down{% endif %}">
+                {% if pct_diff >= 0 %}&#9650;{% else %}&#9660;{% endif %} {{ pct_diff|abs }}% {{ 'above' if pct_diff >= 0 else 'below' }} average
+            </div>
+        </div>
+        {% endif %}
+
+        {% set user_queries = es.total_queries|default(0) %}
+        {% set avg_queries = comp.avg_queries_per_user|default(1) %}
+        {% if avg_queries > 0 %}
+        <div class="compare-card">
+            <div class="compare-label">SQL Queries</div>
+            <div class="compare-values">
+                <span class="compare-you">{{ '{:,}'.format(user_queries) }}</span>
+                <span class="compare-vs">vs</span>
+                <span class="compare-avg">{{ '{:,}'.format(avg_queries) }} avg</span>
+            </div>
+            {% set pct_diff = ((user_queries - avg_queries) / avg_queries * 100)|round|int %}
+            <div class="compare-indicator {% if pct_diff >= 0 %}compare-up{% else %}compare-down{% endif %}">
+                {% if pct_diff >= 0 %}&#9650;{% else %}&#9660;{% endif %} {{ pct_diff|abs }}% {{ 'above' if pct_diff >= 0 else 'below' }} average
+            </div>
+        </div>
+        {% endif %}
+
+        {% set user_jobs = (persona.jobs.owned_jobs|length) if persona.jobs and persona.jobs.owned_jobs else 0 %}
+        {% set avg_jobs = comp.avg_jobs_per_user|default(1) %}
+        {% if avg_jobs > 0 %}
+        <div class="compare-card">
+            <div class="compare-label">Jobs Owned</div>
+            <div class="compare-values">
+                <span class="compare-you">{{ user_jobs }}</span>
+                <span class="compare-vs">vs</span>
+                <span class="compare-avg">{{ avg_jobs }} avg</span>
+            </div>
+            {% set pct_diff = ((user_jobs - avg_jobs) / avg_jobs * 100)|round|int %}
+            <div class="compare-indicator {% if pct_diff >= 0 %}compare-up{% else %}compare-down{% endif %}">
+                {% if pct_diff >= 0 %}&#9650;{% else %}&#9660;{% endif %} {{ pct_diff|abs }}% {{ 'above' if pct_diff >= 0 else 'below' }} average
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ENGAGEMENT TIMELINE — Heatmap, Streaks, Trends
+     ═══════════════════════════════════════════════════════════════════════ -->
+{% if persona.engagement and persona.engagement.heatmap %}
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-3)" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        Engagement Timeline
+    </div>
+
+    <!-- Streak KPIs -->
+    <div class="streak-grid">
+        <div class="streak-card">
+            <div class="streak-value" style="color:var(--chart-3);">{{ persona.engagement.current_streak|default(0) }}</div>
+            <div class="streak-label">Current Streak (days)</div>
+        </div>
+        <div class="streak-card">
+            <div class="streak-value" style="color:var(--chart-4);">{{ persona.engagement.longest_streak|default(0) }}</div>
+            <div class="streak-label">Longest Streak (days)</div>
+        </div>
+        <div class="streak-card">
+            <div class="streak-value">{{ persona.engagement.total_active_days|default(0) }}</div>
+            <div class="streak-label">Active Days</div>
+        </div>
+        {% if persona.engagement.busiest_day %}
+        {% set bd = persona.engagement.busiest_day[0] if persona.engagement.busiest_day else {} %}
+        <div class="streak-card">
+            <div class="streak-value" style="color:var(--chart-1);font-size:20px;">{{ '{:,}'.format(bd.event_count|default(0)) }}</div>
+            <div class="streak-label">Busiest Day ({{ bd.activity_date|default('?') }})</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Heatmap -->
+    <div style="overflow-x:auto;">
+        <div class="heatmap-hour-labels">
+            <span></span>
+            {% for h in range(24) %}
+            <span>{{ h }}</span>
+            {% endfor %}
+        </div>
+        <div class="heatmap-grid" id="engagementHeatmap">
+            <!-- Rendered by JS -->
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     DATA RELIABILITY SCORE — Composite gauge
+     ═══════════════════════════════════════════════════════════════════════ -->
+{% if persona.reliability and persona.reliability.overall is defined %}
+{% set rel = persona.reliability %}
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{% if rel.overall >= 80 %}var(--success){% elif rel.overall >= 50 %}var(--warning){% else %}var(--error){% endif %}" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        Data Reliability Score
+    </div>
+    <div class="gauge-container">
+        <svg class="gauge-svg" viewBox="0 0 200 200">
+            <circle class="gauge-ring-bg" cx="100" cy="100" r="80"/>
+            {% set circumference = 502.65 %}
+            {% set offset = circumference * (1 - rel.overall / 100) %}
+            {% set gauge_color = '#3FB950' if rel.overall >= 80 else '#D29922' if rel.overall >= 50 else '#F85149' %}
+            <circle class="gauge-ring-fill" cx="100" cy="100" r="80"
+                    stroke="{{ gauge_color }}"
+                    stroke-dasharray="{{ circumference }}"
+                    stroke-dashoffset="{{ offset }}"
+                    transform="rotate(-90 100 100)"/>
+            <text class="gauge-text" x="100" y="95">{{ rel.overall|round|int }}</text>
+            <text class="gauge-label" x="100" y="120">out of 100</text>
+        </svg>
+        <div class="gauge-components">
+            <div class="gauge-component">
+                <div class="gauge-component-header">
+                    <span>Query Success Rate</span>
+                    <span style="font-weight:700;">{{ rel.query_success_rate|round(1) }}%</span>
+                </div>
+                <div class="gauge-component-bar">
+                    <div class="gauge-component-fill" style="width:{{ rel.query_success_rate }}%;background:var(--chart-2);"></div>
+                </div>
+            </div>
+            <div class="gauge-component">
+                <div class="gauge-component-header">
+                    <span>Job Success Rate</span>
+                    <span style="font-weight:700;">{{ rel.job_success_rate|round(1) }}%</span>
+                </div>
+                <div class="gauge-component-bar">
+                    <div class="gauge-component-fill" style="width:{{ rel.job_success_rate }}%;background:var(--chart-3);"></div>
+                </div>
+            </div>
+            <div class="gauge-component">
+                <div class="gauge-component-header">
+                    <span>Schema Stability</span>
+                    <span style="font-weight:700;">{{ rel.schema_stability|round(1) }}%</span>
+                </div>
+                <div class="gauge-component-bar">
+                    <div class="gauge-component-fill" style="width:{{ rel.schema_stability }}%;background:var(--chart-4);"></div>
+                </div>
+            </div>
+            <div class="gauge-component">
+                <div class="gauge-component-header">
+                    <span>Pipeline Consistency</span>
+                    <span style="font-weight:700;">{{ rel.pipeline_consistency|round(1) }}%</span>
+                </div>
+                <div class="gauge-component-bar">
+                    <div class="gauge-component-fill" style="width:{{ rel.pipeline_consistency }}%;background:var(--chart-5);"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     COST & EFFICIENCY
+     ═══════════════════════════════════════════════════════════════════════ -->
+{% if persona.cost and persona.cost.cost_categories %}
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--chart-4)" stroke-width="2">
+            <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+        Cost & Efficiency
+        {% if persona.cost.cost_share %}
+        {% set cs = persona.cost.cost_share[0] if persona.cost.cost_share else {} %}
+        {% set user_dbu = cs.user_dbu|default(0)|float %}
+        {% set ws_dbu = cs.workspace_total_dbu|default(1)|float %}
+        <span style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:8px;">
+            {{ '%.1f'|format(user_dbu) }} DBU total · {{ '%.1f'|format((user_dbu / ws_dbu * 100) if ws_dbu > 0 else 0) }}% of workspace
+        </span>
+        {% endif %}
+    </div>
+    {% set max_cost = persona.cost.cost_categories[0].total_dbu|default(1)|float if persona.cost.cost_categories else 1 %}
+    {% set cost_colors = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)'] %}
+    {% for cat in persona.cost.cost_categories %}
+    <div class="h-bar">
+        <div class="h-bar-label">
+            <span>{{ cat.cost_category }}</span>
+            <span>{{ '%.1f'|format(cat.total_dbu|float) }} DBU</span>
+        </div>
+        <div class="h-bar-track">
+            <div class="h-bar-fill" style="width:{{ (cat.total_dbu|float / max_cost * 100)|round }}%;background:{{ cost_colors[loop.index0 % 6] }};"></div>
+        </div>
+    </div>
+    {% endfor %}
+
+    {% if persona.cost.weekly_trend and persona.cost.weekly_trend|length > 1 %}
+    <div style="margin-top:16px;">
+        <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;">WEEKLY DBU TREND</div>
+        <div class="chart-container" id="costTrendChart" style="height:150px;"></div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PHASE 8 — GenAI, Dashboard, Git cards (in grid)
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="grid-2">
+    <!-- GenAI / LLM Usage — AI Modality Constellation -->
+    {% if persona.genai %}
+    <div class="card" style="min-height:320px;">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-5)" stroke-width="2">
+                <path d="M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93"/><path d="M12 22v-4"/><circle cx="12" cy="14" r="4"/>
+            </svg>
+            GenAI & LLM Usage
+            <span style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:4px;">AI Modality Map</span>
+        </div>
+        <canvas id="genaiConstellationCanvas" width="420" height="260"
+                style="width:100%;height:260px;display:block;"></canvas>
+        {% if persona.genai.modality_summary %}
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:6px;">
+          {% for m in persona.genai.modality_summary %}
+          <div style="font-size:11px;color:var(--text-muted);text-align:center;min-width:100px;">
+            <span style="font-size:15px;">{{ m.icon }}</span><br>
+            <strong style="color:var(--text-primary);">{{ m.modality }}</strong><br>
+            {{ m.description }}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Dashboard Activity — Engagement Bubble Chart -->
+    {% if persona.dashboard_activity %}
+    {% set beh = persona.dashboard_activity.behavior[0] if persona.dashboard_activity.behavior else {} %}
+    <div class="card" style="min-height:320px;">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-6)" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>
+            </svg>
+            Dashboard Activity
+            <span style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:4px;">
+                {{ beh.unique_dashboards or 0 }} dashboards · {{ beh.active_days or 0 }} days
+            </span>
+        </div>
+        <canvas id="dashBubbleCanvas" style="width:100%;display:block;"></canvas>
+        <!-- Behaviour pills -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            {% if beh.dashboards_created and beh.dashboards_created > 0 %}
+            <span style="background:rgba(88,166,255,.15);color:#58A6FF;padding:2px 8px;border-radius:12px;font-size:11px;">
+                🏗️ {{ beh.dashboards_created }} created
+            </span>
+            {% endif %}
+            {% if beh.dashboards_edited and beh.dashboards_edited > 0 %}
+            <span style="background:rgba(255,166,0,.15);color:#ffa600;padding:2px 8px;border-radius:12px;font-size:11px;">
+                ✏️ {{ beh.dashboards_edited }} edited
+            </span>
+            {% endif %}
+            {% if beh.publishing_actions and beh.publishing_actions > 0 %}
+            <span style="background:rgba(80,200,120,.15);color:#50C878;padding:2px 8px;border-radius:12px;font-size:11px;">
+                📤 {{ beh.publishing_actions }} published
+            </span>
+            {% endif %}
+            {% if beh.query_interactions and beh.query_interactions > 0 %}
+            <span style="background:rgba(255,86,48,.15);color:var(--chart-1);padding:2px 8px;border-radius:12px;font-size:11px;">
+                ⚡ {{ '{:,}'.format(beh.query_interactions) }} queries
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Git & Version Control -->
+    {% if persona.git_activity and persona.git_activity.actions %}
+    <div class="card">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-1)" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/><line x1="3" y1="12" x2="9" y2="12"/><line x1="15" y1="12" x2="21" y2="12"/>
+            </svg>
+            Git & Version Control
+        </div>
+        {% set max_git = persona.git_activity.actions[0].cnt|default(1) if persona.git_activity.actions else 1 %}
+        {% for a in persona.git_activity.actions[:8] %}
+        <div class="h-bar">
+            <div class="h-bar-label">
+                <span>{{ a.action_name }}</span>
+                <span>{{ '{:,}'.format(a.cnt) }}</span>
+            </div>
+            <div class="h-bar-track">
+                <div class="h-bar-fill" style="width:{{ (a.cnt / max_git * 100)|round }}%;background:var(--chart-1);"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     DETAILED CHARTS & TABLES
+     ═══════════════════════════════════════════════════════════════════════ -->
+
+<div class="grid-2">
+    <!-- Service Usage -->
+    {% if persona.activity and persona.activity.services %}
+    {% set svc_icons = {
+        'notebook': '📒', 'jobs': '⚙️', 'clusters': '🔴', 'dashboards': '📊',
+        'repos': '🌿', 'workspace': '🏠', 'sql': '🗄️', 'mlflowExperiment': '🧬',
+        'mlflowModelRegistry': '🤖', 'aibiGenie': '✨', 'agentFramework': '🦾',
+        'serving': '🚀', 'featureStore': '📦', 'unityCatalog': '📂',
+        'vectorSearch': '🔍', 'permissions': '🔑', 'filesystem': '💾', 'alerts': '🚨',
+        'accounts': '👤', 'files': '📄'
+    } %}
+    <div class="card">
+        <div class="card-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--chart-1)" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            Service Usage
+            <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:4px;">(meaningful events only)</span>
+        </div>
+        {% set max_svc = persona.activity.services[0].event_count if persona.activity.services else 1 %}
+        {% for s in persona.activity.services[:10] %}
+        {% set svc_pct = (s.event_count / max_svc * 100)|round %}
+        {% set svc_icon = svc_icons.get(s.service_name, '⚡') %}
+        <div class="h-bar" style="margin-bottom:8px;">
+            <div class="h-bar-label">
+                <span>{{ svc_icon }} {{ s.service_name }}</span>
+                <span style="font-weight:600;color:var(--chart-1);">{{ '{:,}'.format(s.event_count) }}</span>
+            </div>
+            <div class="h-bar-track" style="height:8px;border-radius:4px;">
+                <div class="h-bar-fill" style="width:{{ svc_pct }}%;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--chart-1)aa,var(--chart-1));"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Statement Types -->
+    {% if persona.queries and persona.queries.statement_types %}
+    <div class="card">
+        <div class="card-header">SQL Statement Types</div>
+        {% set max_st = persona.queries.statement_types[0].query_count if persona.queries.statement_types else 1 %}
+        {% for s in persona.queries.statement_types[:10] %}
+        <div class="h-bar">
+            <div class="h-bar-label">
+                <span>{{ s.statement_type }}</span>
+                <span>{{ '{:,}'.format(s.query_count) }}</span>
+            </div>
+            <div class="h-bar-track">
+                <div class="h-bar-fill" style="width:{{ (s.query_count / max_st * 100)|round }}%;background:var(--chart-2);"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Hourly Pattern — Clock / Radial Chart -->
+    {% if persona.activity and persona.activity.hourly_pattern %}
+    <div class="card">
+        <div class="card-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--chart-1)" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            Activity by Hour (UTC)
+        </div>
+        <div class="clock-chart-wrap">
+            <canvas id="hourlyClockChart" width="280" height="280" style="width:280px;height:280px;"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Query Complexity -->
+    {% if persona.queries and persona.queries.complexity %}
+    <div class="card">
+        <div class="card-header">Query Complexity</div>
+        {% set max_cx = namespace(val=1) %}
+        {% for c in persona.queries.complexity %}
+            {% if c.count > max_cx.val %}{% set max_cx.val = c.count %}{% endif %}
+        {% endfor %}
+        {% set colors = ['var(--chart-3)', 'var(--chart-2)', 'var(--chart-4)', 'var(--chart-1)', 'var(--chart-5)'] %}
+        {% for c in persona.queries.complexity %}
+        <div class="h-bar">
+            <div class="h-bar-label">
+                <span>{{ c.complexity }}</span>
+                <span>{{ '{:,}'.format(c.count) }}</span>
+            </div>
+            <div class="h-bar-track">
+                <div class="h-bar-fill" style="width:{{ (c.count / max_cx.val * 100)|round }}%;background:{{ colors[loop.index0 % 5] }};"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Day of Week — Wave / Rhythm Chart -->
+    {% if persona.activity and persona.activity.dow_pattern %}
+    <div class="card">
+        <div class="card-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            Weekly Activity Rhythm
+        </div>
+        <div class="wave-chart-wrap" id="dowWaveChart"></div>
+    </div>
+    {% endif %}
+
+    <!-- Query Sources -->
+    {% if persona.queries and persona.queries.query_sources %}
+    <div class="card">
+        <div class="card-header">Query Sources</div>
+        {% set max_qs = persona.queries.query_sources[0].count if persona.queries.query_sources else 1 %}
+        {% for s in persona.queries.query_sources[:8] %}
+        <div class="h-bar">
+            <div class="h-bar-label">
+                <span>{{ s.source_type }}</span>
+                <span>{{ '{:,}'.format(s.count) }}</span>
+            </div>
+            <div class="h-bar-track">
+                <div class="h-bar-fill" style="width:{{ (s.count / max_qs * 100)|round }}%;background:var(--chart-5);"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Client Tools -->
+    {% if persona.activity and persona.activity.clients %}
+    {% set tool_icons = {
+        'SDK/Python': '🐍', 'Web Browser': '🌐', 'DB Connect': '🔗',
+        'cURL/CLI': '⌨️', 'Spark': '⚡', 'Unknown': '❓'
+    } %}
+    <div class="card">
+        <div class="card-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--chart-6)" stroke-width="2">
+                <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+            </svg>
+            Client Tools Used
+        </div>
+        {% set max_cl = persona.activity.clients[0].usage_count if persona.activity.clients else 1 %}
+        {% for c in persona.activity.clients[:8] %}
+        {% set tool_icon = tool_icons.get(c.client_type, '🔧') %}
+        <div class="h-bar" style="margin-bottom:8px;">
+            <div class="h-bar-label">
+                <span>{{ tool_icon }} {{ c.client_type }}</span>
+                <span style="font-weight:600;color:var(--chart-6);">{{ '{:,}'.format(c.usage_count) }}</span>
+            </div>
+            <div class="h-bar-track" style="height:8px;border-radius:4px;">
+                <div class="h-bar-fill" style="width:{{ (c.usage_count / max_cl * 100)|round }}%;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--chart-6)aa,var(--chart-6));"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Full width sections -->
+
+<!-- Tables Read / Written -->
+{% if persona.lineage %}
+<div class="grid-2">
+    {% if persona.lineage.tables_read %}
+    <div class="card">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-3)" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+            </svg>
+            Top Tables Read
+        </div>
+        <table class="data-table">
+            <thead><tr><th>Table</th><th>Read Count</th></tr></thead>
+            <tbody>
+                {% for t in persona.lineage.tables_read[:15] %}
+                <tr>
+                    <td><code style="font-size:12px;">{{ t.table_name }}</code></td>
+                    <td>{{ '{:,}'.format(t.read_count) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if persona.lineage.tables_written %}
+    <div class="card">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-1)" stroke-width="2">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+            </svg>
+            Top Tables Written
+        </div>
+        <table class="data-table">
+            <thead><tr><th>Table</th><th>Write Count</th></tr></thead>
+            <tbody>
+                {% for t in persona.lineage.tables_written[:15] %}
+                <tr>
+                    <td><code style="font-size:12px;">{{ t.table_name }}</code></td>
+                    <td>{{ '{:,}'.format(t.write_count) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Catalog Usage -->
+{% if persona.lineage and persona.lineage.catalog_usage %}
+<div class="card">
+    <div class="card-header">Catalog Usage</div>
+    {% set max_cat = persona.lineage.catalog_usage[0].usage_count if persona.lineage.catalog_usage else 1 %}
+    <div class="grid-2">
+        {% for c in persona.lineage.catalog_usage[:10] %}
+        <div class="h-bar">
+            <div class="h-bar-label">
+                <span>{{ c.catalog_name }}</span>
+                <span>{{ '{:,}'.format(c.usage_count) }}</span>
+            </div>
+            <div class="h-bar-track">
+                <div class="h-bar-fill" style="width:{{ (c.usage_count / max_cat * 100)|round }}%;background:var(--chart-4);"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Table Lifecycle & Governance -->
+{% if persona.table_governance and persona.table_governance.table_lifecycle %}
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-3)" stroke-width="2">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+        </svg>
+        Table Lifecycle & Governance
+    </div>
+
+    <!-- Table lifecycle KPIs -->
+    {% set creates = namespace(val=0) %}
+    {% set deletes = namespace(val=0) %}
+    {% set alters = namespace(val=0) %}
+    {% for t in persona.table_governance.table_lifecycle %}
+        {% if t.action_name == 'createTable' %}{% set creates.val = t.cnt %}{% endif %}
+        {% if t.action_name == 'deleteTable' %}{% set deletes.val = t.cnt %}{% endif %}
+        {% if t.action_name == 'alterTable' %}{% set alters.val = t.cnt %}{% endif %}
+    {% endfor %}
+    <div class="streak-grid" style="margin-bottom:16px;">
+        <div class="streak-card">
+            <div class="streak-value" style="color:var(--chart-3);">{{ creates.val }}</div>
+            <div class="streak-label">Tables Created</div>
+        </div>
+        <div class="streak-card">
+            <div class="streak-value" style="color:var(--chart-1);">{{ deletes.val }}</div>
+            <div class="streak-label">Tables Deleted</div>
+        </div>
+        <div class="streak-card">
+            {% set net = creates.val - deletes.val %}
+            <div class="streak-value" style="color:{% if net >= 0 %}var(--success){% else %}var(--error){% endif %};">{{ '+' if net > 0 else '' }}{{ net }}</div>
+            <div class="streak-label">Net Growth</div>
+        </div>
+        <div class="streak-card">
+            <div class="streak-value">{{ alters.val }}</div>
+            <div class="streak-label">Tables Altered</div>
+        </div>
+    </div>
+
+    {% if persona.table_governance.tables_created or persona.table_governance.tables_deleted %}
+    <div class="grid-2" style="gap:12px;">
+        {% if persona.table_governance.tables_created %}
+        <div>
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:6px;">RECENTLY CREATED</div>
+            {% for t in persona.table_governance.tables_created[:8] %}
+            <div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">
+                <code style="color:var(--chart-3);">{{ t.table_name }}</code>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if persona.table_governance.tables_deleted %}
+        <div>
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:6px;">RECENTLY DELETED</div>
+            {% for t in persona.table_governance.tables_deleted[:8] %}
+            <div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">
+                <code style="color:var(--chart-1);">{{ t.table_name }}</code>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if persona.table_governance.governance %}
+    <div style="margin-top:16px;">
+        <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;">GOVERNANCE ACTIONS</div>
+        {% set max_gov = persona.table_governance.governance[0].cnt|default(1) if persona.table_governance.governance else 1 %}
+        {% for g in persona.table_governance.governance[:6] %}
+        <div class="h-bar">
+            <div class="h-bar-label">
+                <span>{{ g.action_name }}</span>
+                <span>{{ g.cnt }}</span>
+            </div>
+            <div class="h-bar-track">
+                <div class="h-bar-fill" style="width:{{ (g.cnt / max_gov * 100)|round }}%;background:var(--chart-5);"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Jobs -->
+{% if persona.jobs %}
+<div class="grid-2">
+    {% if persona.jobs.owned_jobs %}
+    <div class="card">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-2)" stroke-width="2">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+            </svg>
+            Jobs Owned ({{ persona.jobs.owned_jobs|length }})
+        </div>
+        <table class="data-table">
+            <thead><tr><th>Job Name</th><th>ID</th></tr></thead>
+            <tbody>
+                {% for j in persona.jobs.owned_jobs[:15] %}
+                <tr>
+                    <td>{{ j.name or 'Unnamed' }}</td>
+                    <td style="color:var(--text-muted)">{{ j.job_id }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if persona.jobs.job_runs %}
+    <div class="card">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-3)" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            Job Run Performance
+        </div>
+        <table class="data-table">
+            <thead><tr><th>Job</th><th>Runs</th><th>Success %</th></tr></thead>
+            <tbody>
+                {% for jr in persona.jobs.job_runs[:15] %}
+                <tr>
+                    <td>{{ jr.job_name }}</td>
+                    <td>{{ jr.total_runs }}</td>
+                    <td>
+                        {% if jr.total_runs > 0 %}
+                            {% set rate = (jr.successes / jr.total_runs * 100)|round(1) %}
+                            <span class="badge {% if rate >= 95 %}badge-success{% elif rate >= 80 %}badge-warning{% else %}badge-error{% endif %}">
+                                {{ rate }}%
+                            </span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Job Run Deep Dive -->
+{% if persona.job_deep_dive and persona.job_deep_dive.failures %}
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-1)" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        Job Run Failures
+    </div>
+    <table class="data-table">
+        <thead><tr><th>Job</th><th>State</th><th>Code</th><th>Failures</th><th>Last Failure</th></tr></thead>
+        <tbody>
+            {% for f in persona.job_deep_dive.failures[:15] %}
+            <tr>
+                <td>{{ f.job_name }}</td>
+                <td><span class="badge badge-error">{{ f.result_state }}</span></td>
+                <td style="color:var(--text-muted);">{{ f.termination_code or '-' }}</td>
+                <td>{{ f.fail_count }}</td>
+                <td style="color:var(--text-muted);font-size:12px;">{{ f.last_failure }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if persona.job_deep_dive and persona.job_deep_dive.run_breakdown %}
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-2)" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Job Run Breakdown by Trigger
+    </div>
+    <table class="data-table">
+        <thead><tr><th>Job</th><th>Trigger</th><th>State</th><th>Runs</th></tr></thead>
+        <tbody>
+            {% for r in persona.job_deep_dive.run_breakdown[:20] %}
+            <tr>
+                <td>{{ r.job_name }}</td>
+                <td><span class="badge badge-info">{{ r.trigger_type or '-' }}</span></td>
+                <td>
+                    <span class="badge {% if r.result_state == 'SUCCEEDED' %}badge-success{% elif r.result_state == 'FAILED' %}badge-error{% else %}badge-warning{% endif %}">
+                        {{ r.result_state }}
+                    </span>
+                </td>
+                <td>{{ r.run_count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Collaboration -->
+{% if persona.collaboration %}
+<div class="grid-2">
+    {% if persona.collaboration.downstream_consumers %}
+    <div class="card">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-6)" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            Downstream Consumers (people using your data)
+        </div>
+        <table class="data-table">
+            <thead><tr><th>User</th><th>Interactions</th></tr></thead>
+            <tbody>
+                {% for d in persona.collaboration.downstream_consumers[:10] %}
+                <tr>
+                    <td>{{ d.downstream_user }}</td>
+                    <td>{{ '{:,}'.format(d.interaction_count) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if persona.collaboration.upstream_dependencies %}
+    <div class="card">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-5)" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            Upstream Dependencies (people whose data you use)
+        </div>
+        <table class="data-table">
+            <thead><tr><th>User</th><th>Interactions</th></tr></thead>
+            <tbody>
+                {% for u in persona.collaboration.upstream_dependencies[:10] %}
+                <tr>
+                    <td>{{ u.upstream_user }}</td>
+                    <td>{{ '{:,}'.format(u.interaction_count) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Compute -->
+{% if persona.compute and persona.compute.clusters %}
+<div class="card">
+    <div class="card-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--chart-4)" stroke-width="2">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+            <line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>
+        </svg>
+        Clusters
+    </div>
+    <table class="data-table">
+        <thead><tr><th>Cluster Name</th><th>Type</th><th>Node Type</th><th>Spark Version</th></tr></thead>
+        <tbody>
+            {% for c in persona.compute.clusters[:15] %}
+            <tr>
+                <td>{{ c.cluster_name or 'Unnamed' }}</td>
+                <td><span class="badge badge-info">{{ c.cluster_type or '-' }}</span></td>
+                <td>{{ c.node_type_id or '-' }}</td>
+                <td style="color:var(--text-muted);">{{ c.spark_version or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if persona %}
+<script>
+const personaData = {{ persona_json|safe }};
+
+// ── Radar / Spider Chart ──
+function renderRadarChart(containerId, archetypes) {
+    const container = document.getElementById(containerId);
+    if (!container || !archetypes || archetypes.length === 0) return;
+
+    const size = 380;
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = document.createElement('canvas');
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
+    container.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const cx = size / 2;
+    const cy = size / 2;
+    const maxR = size / 2 - 50;
+    const n = archetypes.length;
+    const angleStep = (2 * Math.PI) / n;
+    const startAngle = -Math.PI / 2; // Start from top
+
+    // Draw concentric grid rings (20%, 40%, 60%, 80%, 100%)
+    for (let ring = 1; ring <= 5; ring++) {
+        const r = (ring / 5) * maxR;
+        ctx.beginPath();
+        for (let i = 0; i <= n; i++) {
+            const angle = startAngle + i * angleStep;
+            const x = cx + r * Math.cos(angle);
+            const y = cy + r * Math.sin(angle);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.strokeStyle = 'rgba(139,148,158,0.15)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Ring percentage label
+        ctx.fillStyle = 'rgba(139,148,158,0.4)';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText((ring * 20) + '%', cx + 2, cy - r + 12);
+    }
+
+    // Draw axis lines
+    for (let i = 0; i < n; i++) {
+        const angle = startAngle + i * angleStep;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + maxR * Math.cos(angle), cy + maxR * Math.sin(angle));
+        ctx.strokeStyle = 'rgba(139,148,158,0.2)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    // Draw the data polygon (user scores)
+    const values = archetypes.map(a => a.match_pct || 0);
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+        const idx = i % n;
+        const angle = startAngle + idx * angleStep;
+        const r = (values[idx] / 100) * maxR;
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    const primaryColor = archetypes[0].color || '#58A6FF';
+    ctx.fillStyle = primaryColor + '25';
+    ctx.fill();
+    ctx.strokeStyle = primaryColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Draw dots at each vertex
+    for (let i = 0; i < n; i++) {
+        const angle = startAngle + i * angleStep;
+        const r = (values[i] / 100) * maxR;
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = archetypes[i].color || primaryColor;
+        ctx.fill();
+        ctx.strokeStyle = '#0D1117';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+
+    // Draw labels
+    for (let i = 0; i < n; i++) {
+        const angle = startAngle + i * angleStep;
+        const labelR = maxR + 28;
+        const x = cx + labelR * Math.cos(angle);
+        const y = cy + labelR * Math.sin(angle);
+
+        ctx.textAlign = Math.abs(Math.cos(angle)) < 0.1 ? 'center'
+            : Math.cos(angle) > 0 ? 'left' : 'right';
+        ctx.textBaseline = Math.abs(Math.sin(angle)) < 0.1 ? 'middle'
+            : Math.sin(angle) > 0 ? 'top' : 'bottom';
+
+        // Short name (remove "The " prefix)
+        const label = (archetypes[i].name || '').replace(/^The\s+/, '');
+        ctx.fillStyle = archetypes[i].color || '#C9D1D9';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText(label, x, y);
+
+        // Percentage below
+        ctx.fillStyle = '#8B949E';
+        ctx.font = '10px sans-serif';
+        ctx.fillText(values[i] + '%', x, y + 14);
+    }
+}
+
+// Render bar charts using pure Canvas
+// ══════════════════════════════════════════════════════════════════════════
+// WOW: Activity Signal — animated floating service node visualization
+// ══════════════════════════════════════════════════════════════════════════
+function renderActivitySignal(canvasId, services, primaryColor) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !services || services.length === 0) return;
+
+    function hexRgb(hex) {
+        const h = hex.replace('#','');
+        return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+    }
+    const pc = hexRgb(primaryColor.startsWith('#') ? primaryColor : '#FF3621');
+
+    const dpr = window.devicePixelRatio || 1;
+    function resize() {
+        const wrap = canvas.parentElement;
+        const W = wrap.offsetWidth;
+        const H = wrap.offsetHeight;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        return { W, H };
+    }
+
+    let { W, H } = resize();
+    const ctx = canvas.getContext('2d');
+
+    const topSvc = services.slice(0, Math.min(9, services.length));
+    const maxEv = Math.max(...topSvc.map(s => s.event_count || 1));
+
+    // Position nodes in a gentle orbit pattern
+    function makeNode(s, i, total) {
+        const ratio = (s.event_count || 0) / maxEv;
+        const angle = (i / total) * Math.PI * 2 - Math.PI / 2;
+        // Elliptical orbit: wider than tall for widescreen
+        const orx = W / 2 + Math.cos(angle) * W * 0.28;
+        const ory = H / 2 + Math.sin(angle) * H * 0.32;
+        return {
+            orx, ory, x: orx, y: ory,
+            size: 16 + ratio * 28,
+            label: s.service_name,
+            count: s.event_count || 0,
+            ratio,
+            phase: (i / total) * Math.PI * 2,
+            speed: 0.008 + ratio * 0.006,
+        };
+    }
+    let nodes = topSvc.map((s, i) => makeNode(s, i, topSvc.length));
+
+    // Floating particles
+    function makeParticles(W, H, n) {
+        return Array.from({ length: n }, () => ({
+            x: Math.random() * W, y: Math.random() * H,
+            vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
+            alpha: Math.random() * 0.25 + 0.04,
+            r: Math.random() * 1.8 + 0.4,
+        }));
+    }
+    let particles = makeParticles(W, H, 55);
+
+    let frame = 0;
+    let animId;
+
+    function draw() {
+        // Resize if needed
+        const newW = canvas.parentElement.offsetWidth;
+        const newH = canvas.parentElement.offsetHeight;
+        if (Math.abs(newW - W) > 20 || Math.abs(newH - H) > 20) {
+            ({ W, H } = resize());
+            ctx.scale(dpr, dpr);
+            nodes = topSvc.map((s, i) => makeNode(s, i, topSvc.length));
+            particles = makeParticles(W, H, 55);
+        }
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Subtle grid
+        ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < W; x += 50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+        for (let y = 0; y < H; y += 50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+        // Update & draw particles
+        particles.forEach(p => {
+            p.x += p.vx; p.y += p.vy;
+            if (p.x < 0 || p.x > W) p.vx = -p.vx;
+            if (p.y < 0 || p.y > H) p.vy = -p.vy;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${pc},${p.alpha})`;
+            ctx.fill();
+        });
+
+        // Update node positions (gentle breathing float)
+        nodes.forEach(n => {
+            n.phase += n.speed;
+            n.x = n.orx + Math.sin(n.phase * 0.8) * 8;
+            n.y = n.ory + Math.cos(n.phase) * 5;
+        });
+
+        // Draw connections
+        nodes.forEach((a, i) => {
+            nodes.slice(i + 1).forEach(b => {
+                const d = Math.hypot(a.x - b.x, a.y - b.y);
+                if (d < W * 0.32) {
+                    const alpha = (1 - d / (W * 0.32)) * 0.18;
+                    ctx.beginPath();
+                    ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+                    ctx.strokeStyle = `rgba(${pc},${alpha})`;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+            });
+        });
+
+        // Draw nodes
+        const pulse = 1 + Math.sin(frame * 0.04) * 0.06;
+        nodes.forEach(n => {
+            const r = n.size * pulse;
+
+            // Outer glow
+            const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 2.8);
+            grd.addColorStop(0, `rgba(${pc},${0.28 * n.ratio})`);
+            grd.addColorStop(1, `rgba(${pc},0)`);
+            ctx.beginPath(); ctx.arc(n.x, n.y, r * 2.8, 0, Math.PI * 2);
+            ctx.fillStyle = grd; ctx.fill();
+
+            // Inner node
+            ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${pc},${0.12 + n.ratio * 0.22})`;
+            ctx.fill();
+            ctx.strokeStyle = `rgba(${pc},${0.55 + n.ratio * 0.45})`;
+            ctx.lineWidth = 1.5; ctx.stroke();
+
+            // Count inside node
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = 'rgba(230,237,243,0.95)';
+            ctx.font = `bold ${Math.max(8, Math.round(r * 0.52))}px system-ui`;
+            ctx.fillText(n.count >= 1000 ? (n.count/1000).toFixed(1)+'k' : n.count, n.x, n.y);
+
+            // Label below
+            ctx.fillStyle = 'rgba(230,237,243,0.75)';
+            ctx.font = `${Math.max(9, Math.round(9 + n.ratio * 2))}px system-ui`;
+            ctx.fillText(n.label, n.x, n.y + r + 14);
+        });
+
+        frame++;
+        animId = requestAnimationFrame(draw);
+    }
+
+    // Start with a slight delay after layout
+    setTimeout(() => {
+        ctx.scale(dpr, dpr);
+        draw();
+    }, 120);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Radial 24-hour Clock Chart
+// ══════════════════════════════════════════════════════════════════════════
+function renderClockChart(canvasId, data, primaryColor) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !data || data.length === 0) return;
+
+    function hexRgb(hex) {
+        const h = (hex || '#FF3621').replace('#','');
+        return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+    }
+    const pc = hexRgb(primaryColor);
+    const dpr = window.devicePixelRatio || 1;
+    const size = 280;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const cx = size / 2, cy = size / 2;
+    const innerR = size * 0.16, outerR = size * 0.42;
+    const startAngle = -Math.PI / 2;
+
+    // Build hour lookup
+    const hd = {};
+    data.forEach(d => { hd[d.hour_of_day] = d.event_count || 0; });
+    const maxCount = Math.max(...data.map(d => d.event_count || 0), 1);
+    const peakEntry = data.reduce((m, d) => d.event_count > m.event_count ? d : m, data[0]);
+
+    // Background disc
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR + 12, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(13,17,23,0.6)';
+    ctx.fill();
+
+    // 24 radial bars
+    const segAngle = (Math.PI * 2) / 24;
+    for (let h = 0; h < 24; h++) {
+        const count = hd[h] || 0;
+        const ratio = count / maxCount;
+        const barLen = innerR + ratio * (outerR - innerR);
+        const angle = startAngle + h * segAngle;
+        const bw = segAngle * 0.72;
+        const a1 = angle - bw / 2, a2 = angle + bw / 2;
+
+        const grad = ctx.createLinearGradient(
+            cx + innerR * Math.cos(angle), cy + innerR * Math.sin(angle),
+            cx + barLen * Math.cos(angle), cy + barLen * Math.sin(angle)
+        );
+        const alpha = 0.25 + ratio * 0.75;
+        grad.addColorStop(0, `rgba(${pc},${alpha * 0.4})`);
+        grad.addColorStop(1, `rgba(${pc},${alpha})`);
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, innerR, a1, a2);
+        ctx.arc(cx, cy, barLen, a2, a1, true);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Peak glow ring
+        if (count === maxCount) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, barLen - 1, a1, a2);
+            ctx.arc(cx, cy, barLen + 3, a2, a1, true);
+            ctx.closePath();
+            ctx.fillStyle = `rgba(${pc},0.9)`;
+            ctx.fill();
+        }
+    }
+
+    // Axis hour labels at 0, 6, 12, 18
+    ctx.fillStyle = 'rgba(139,148,158,0.8)';
+    ctx.font = 'bold 10px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    [0, 6, 12, 18].forEach(h => {
+        const a = startAngle + h * segAngle;
+        const lr = outerR + 18;
+        ctx.fillText(h + ':00', cx + lr * Math.cos(a), cy + lr * Math.sin(a));
+    });
+
+    // Center hole
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerR - 1, 0, Math.PI * 2);
+    ctx.fillStyle = '#0D1117';
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${pc},0.3)`;
+    ctx.lineWidth = 1; ctx.stroke();
+
+    // Center label: peak hour
+    ctx.fillStyle = 'rgba(230,237,243,0.95)';
+    ctx.font = `bold 14px system-ui`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${String(peakEntry.hour_of_day).padStart(2,'0')}:00`, cx, cy - 7);
+    ctx.fillStyle = 'rgba(139,148,158,0.7)';
+    ctx.font = '9px system-ui';
+    ctx.fillText('peak hour', cx, cy + 7);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Smooth Wave / Rhythm Chart for Day-of-Week
+// ══════════════════════════════════════════════════════════════════════════
+function renderWaveChart(containerId, data, labelKey, valueKey, primaryColor) {
+    const container = document.getElementById(containerId);
+    if (!container || !data || data.length === 0) return;
+
+    function hexRgb(hex) {
+        const h = (hex || '#58A6FF').replace('#','');
+        return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+    }
+    const pc = hexRgb(primaryColor);
+
+    const dpr = window.devicePixelRatio || 1;
+    const W = container.offsetWidth || 400;
+    const H = container.offsetHeight || 200;
+    const canvas = document.createElement('canvas');
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = '100%'; canvas.style.height = '100%';
+    container.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const pad = { top: 28, right: 24, bottom: 40, left: 28 };
+    const cW = W - pad.left - pad.right;
+    const cH = H - pad.top - pad.bottom;
+    const n = data.length;
+    const maxVal = Math.max(...data.map(d => d[valueKey] || 0), 1);
+
+    const pts = data.map((d, i) => ({
+        x: pad.left + (n === 1 ? cW / 2 : (i / (n - 1)) * cW),
+        y: pad.top + cH - ((d[valueKey] || 0) / maxVal) * cH * 0.88,
+        label: String(d[labelKey] || ''),
+        val: d[valueKey] || 0,
+    }));
+
+    // Bezier fill path
+    function traceCurve(path) {
+        path.moveTo(pts[0].x, pts[0].y);
+        for (let i = 0; i < pts.length - 1; i++) {
+            const cpx = (pts[i].x + pts[i+1].x) / 2;
+            path.bezierCurveTo(cpx, pts[i].y, cpx, pts[i+1].y, pts[i+1].x, pts[i+1].y);
+        }
+    }
+
+    const fillPath = new Path2D();
+    fillPath.moveTo(pts[0].x, pad.top + cH);
+    fillPath.lineTo(pts[0].x, pts[0].y);
+    traceCurve(fillPath);
+    fillPath.lineTo(pts[pts.length - 1].x, pad.top + cH);
+    fillPath.closePath();
+
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
+    grad.addColorStop(0, `rgba(${pc},0.38)`);
+    grad.addColorStop(0.7, `rgba(${pc},0.1)`);
+    grad.addColorStop(1, `rgba(${pc},0.01)`);
+    ctx.fillStyle = grad; ctx.fill(fillPath);
+
+    // Line
+    const linePath = new Path2D();
+    traceCurve(linePath);
+    ctx.strokeStyle = `rgba(${pc},0.9)`;
+    ctx.lineWidth = 2.5; ctx.stroke(linePath);
+
+    // Grid lines (subtle)
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i++) {
+        const y = pad.top + (cH / 4) * i;
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke();
+    }
+
+    // Dots + labels
+    pts.forEach(p => {
+        const isPeak = p.val === maxVal;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, isPeak ? 7 : 5, 0, Math.PI * 2);
+        ctx.fillStyle = isPeak ? `rgba(${pc},1)` : `rgba(${pc},0.7)`;
+        ctx.fill();
+        ctx.strokeStyle = '#0D1117'; ctx.lineWidth = 2; ctx.stroke();
+
+        // Day label
+        ctx.fillStyle = 'rgba(139,148,158,0.85)';
+        ctx.font = isPeak ? 'bold 11px system-ui' : '11px system-ui';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText(p.label, p.x, pad.top + cH + 8);
+
+        // Value label on peak
+        if (isPeak) {
+            ctx.fillStyle = `rgba(${pc},1)`;
+            ctx.font = 'bold 10px system-ui';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(p.val.toLocaleString(), p.x, p.y - 8);
+        }
+    });
+}
+
+function renderBarChart(containerId, data, labelKey, valueKey, color) {
+    const container = document.getElementById(containerId);
+    if (!container || !data || data.length === 0) return;
+
+    const canvas = document.createElement('canvas');
+    const rect = container.getBoundingClientRect();
+    canvas.width = rect.width || 500;
+    canvas.height = rect.height || 300;
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    container.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+    const chartW = canvas.width - padding.left - padding.right;
+    const chartH = canvas.height - padding.top - padding.bottom;
+
+    const maxVal = Math.max(...data.map(d => d[valueKey] || 0));
+    const barWidth = chartW / data.length * 0.7;
+    const barGap = chartW / data.length * 0.3;
+
+    // Grid lines
+    ctx.strokeStyle = '#21262D';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padding.top + (chartH / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(canvas.width - padding.right, y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#8B949E';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'right';
+        const label = Math.round(maxVal - (maxVal / 4) * i);
+        ctx.fillText(label.toLocaleString(), padding.left - 8, y + 4);
+    }
+
+    // Bars
+    data.forEach((d, i) => {
+        const val = d[valueKey] || 0;
+        const barH = (val / maxVal) * chartH;
+        const x = padding.left + i * (barWidth + barGap) + barGap / 2;
+        const y = padding.top + chartH - barH;
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.roundRect(x, y, barWidth, barH, [3, 3, 0, 0]);
+        ctx.fill();
+
+        // Label
+        ctx.fillStyle = '#8B949E';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        let lbl = String(d[labelKey] || '');
+        if (lbl.length > 5) lbl = lbl.substring(0, 5);
+        ctx.fillText(lbl, x + barWidth / 2, canvas.height - padding.bottom + 16);
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GenAI Modality Constellation
+// Three AI modalities orbit a central "YOU" node — node size ∝ interactions.
+// Animated pulse rings indicate live activity.
+// ─────────────────────────────────────────────────────────────────────────────
+function renderGenaiConstellation(canvasId, modalities) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !modalities || !modalities.length) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.clientWidth || 420;
+    const H = canvas.clientHeight || 260;
+    canvas.width = W * devicePixelRatio;
+    canvas.height = H * devicePixelRatio;
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+
+    const cx = W / 2, cy = H / 2;
+    const orbitR = Math.min(W, H) * 0.33;
+    const colors = ['#58A6FF', '#E6A817', '#FF3621'];
+    const icons  = ['✨', '🦾', '🧠'];
+
+    // Pre-compute max for sizing
+    const maxInteract = Math.max(1, ...modalities.map(m =>
+        m.total_interactions || m.total_dbu_workspace || 0
+    ));
+
+    let tick = 0;
+    const nodes = modalities.map((m, i) => {
+        const angle = (i / modalities.length) * Math.PI * 2 - Math.PI / 2;
+        const val = m.total_interactions || m.total_dbu_workspace || 0;
+        return {
+            baseAngle: angle,
+            color: colors[i] || '#888',
+            icon: icons[i],
+            label: m.modality,
+            val,
+            r: 20 + (val / maxInteract) * 26,
+            pulse: Math.random() * Math.PI * 2,
+        };
+    });
+
+    function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        // Starfield
+        ctx.save();
+        for (let i = 0; i < 40; i++) {
+            const sx = (i * 137.5) % W;
+            const sy = (i * 97.3 + 11) % H;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 0.8, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255,255,255,${0.1 + (i % 5) * 0.04})`;
+            ctx.fill();
+        }
+        ctx.restore();
+
+        // Orbit ring
+        ctx.beginPath();
+        ctx.arc(cx, cy, orbitR, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw spokes + nodes
+        nodes.forEach((n, i) => {
+            const wobble = Math.sin(tick * 0.012 + n.baseAngle) * 0.05;
+            const angle  = n.baseAngle + wobble;
+            const nx = cx + Math.cos(angle) * orbitR;
+            const ny = cy + Math.sin(angle) * orbitR;
+
+            // Spoke
+            const grad = ctx.createLinearGradient(cx, cy, nx, ny);
+            grad.addColorStop(0, `${n.color}44`);
+            grad.addColorStop(1, `${n.color}cc`);
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(nx, ny);
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Pulse ring
+            const pulseScale = 1 + 0.18 * Math.sin(tick * 0.05 + n.pulse);
+            ctx.beginPath();
+            ctx.arc(nx, ny, n.r * pulseScale + 6, 0, Math.PI * 2);
+            ctx.strokeStyle = `${n.color}33`;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Outer ring
+            ctx.beginPath();
+            ctx.arc(nx, ny, n.r + 4, 0, Math.PI * 2);
+            ctx.strokeStyle = `${n.color}66`;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Filled circle
+            const ng = ctx.createRadialGradient(nx - n.r * 0.3, ny - n.r * 0.3, 2, nx, ny, n.r);
+            ng.addColorStop(0, `${n.color}ff`);
+            ng.addColorStop(1, `${n.color}88`);
+            ctx.beginPath();
+            ctx.arc(nx, ny, n.r, 0, Math.PI * 2);
+            ctx.fillStyle = ng;
+            ctx.fill();
+
+            // Icon
+            ctx.font = `${Math.min(n.r, 18)}px serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(n.icon, nx, ny);
+
+            // Metric label below node
+            const metric = n.val > 0
+                ? (n.val > 9999 ? (n.val / 1000).toFixed(1) + 'k' : n.val.toLocaleString())
+                : '—';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.fillStyle = n.color;
+            ctx.textBaseline = 'top';
+            ctx.fillText(metric, nx, ny + n.r + 6);
+        });
+
+        // Central YOU node
+        const centerPulse = 1 + 0.12 * Math.sin(tick * 0.04);
+        ctx.beginPath();
+        ctx.arc(cx, cy, 22 * centerPulse, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+        const cg = ctx.createRadialGradient(cx - 6, cy - 6, 2, cx, cy, 18);
+        cg.addColorStop(0, '#ffffff');
+        cg.addColorStop(1, '#aaaaaa');
+        ctx.fillStyle = cg;
+        ctx.fill();
+        ctx.font = 'bold 9px sans-serif';
+        ctx.fillStyle = '#000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('YOU', cx, cy);
+
+        tick++;
+        requestAnimationFrame(draw);
+    }
+    draw();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dashboard Engagement Bubble Chart
+// Each dashboard = a bubble.  X = recency (today→left, older→right).
+// Y = query intensity (queries/total_actions).  Size ∝ total_actions (log).
+// Color: blue=consumer (0 edits), amber=builder (has edits).
+// ─────────────────────────────────────────────────────────────────────────────
+function renderDashBubbles(canvasId, topDashboards, sessions) {
+    // ── Horizontal ranked bar chart ───────────────────────────────────────────
+    // Replaces the old scatter plot which broke when all last_seen dates were
+    // identical (causing every bubble to stack on the same X position).
+    // This version:
+    //   • Shows one row per dashboard, sorted by total_actions (most active first)
+    //   • Bar width ∝ total_actions (log-scaled so small values are still visible)
+    //   • Color = orange (builder, edit_count > 0) or blue (consumer)
+    //   • Dot at bar end sized by query_runs count
+    //   • Labels use dashboard_name when available, falling back to "…<last6id>"
+    //   • Canvas width resolved via getBoundingClientRect() to avoid 0-width bug
+    // ─────────────────────────────────────────────────────────────────────────
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !topDashboards || !topDashboards.length) return;
+    const ctx = canvas.getContext('2d');
+
+    const MAX_ROWS   = 10;
+    const ROW_H      = 26;
+    const LABEL_W    = 190;  // px reserved for the label on the left
+    const PAD        = { t: 28, b: 16, r: 20 };
+
+    const items = topDashboards.slice(0, MAX_ROWS).map(d => {
+        const total  = Math.max(1, parseInt(d.total_actions) || 1);
+        const qRuns  = parseInt(d.query_runs)  || 0;
+        const edits  = parseInt(d.edit_count)  || 0;
+        const days   = parseInt(d.active_days) || 0;
+        const rawId  = (d.dashboard_id || '').slice(-6);
+        const name   = (d.dashboard_name && d.dashboard_name.trim())
+                        ? d.dashboard_name.trim()
+                        : '\u2026' + rawId;          // "…abc123" fallback
+        return { total, qRuns, edits, days, name,
+                 isBuilder: edits > 0,
+                 color: edits > 0 ? '#E6A817' : '#58A6FF' };
+    });
+
+    const maxTotal = Math.max(...items.map(i => i.total));
+
+    // Size canvas to fit all rows
+    function resize() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        const W = Math.max(360, rect.width || 420);
+        const H = PAD.t + items.length * ROW_H + PAD.b;
+        canvas.style.height = H + 'px';
+        canvas.width  = W * devicePixelRatio;
+        canvas.height = H * devicePixelRatio;
+        ctx.scale(devicePixelRatio, devicePixelRatio);
+        return { W, H };
+    }
+
+    let hoveredIdx = -1;
+
+    function draw(progress) {
+        const { W, H } = resize();
+        ctx.clearRect(0, 0, W, H);
+
+        const BAR_W = W - LABEL_W - PAD.r - 8;  // available bar track width
+
+        // Header labels
+        ctx.font = '9px sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.30)';
+        ctx.textAlign = 'left';
+        ctx.fillText('Dashboard', 4, 13);
+        ctx.textAlign = 'right';
+        ctx.fillText('Actions', W - PAD.r, 13);
+
+        // Legend
+        [['● Builder', '#E6A817'], ['● Viewer', '#58A6FF']].forEach(([lbl, col], li) => {
+            ctx.fillStyle = col;
+            ctx.textAlign = 'left';
+            ctx.fillText(lbl, LABEL_W + 8 + li * 72, 13);
+        });
+
+        items.forEach((item, idx) => {
+            const y    = PAD.t + idx * ROW_H;
+            const cx   = y + ROW_H / 2;                        // vertical center of row
+            const hov  = hoveredIdx === idx;
+            const col  = item.color;
+
+            // Row highlight on hover
+            if (hov) {
+                ctx.fillStyle = `${col}10`;
+                ctx.fillRect(0, y, W, ROW_H);
+            }
+
+            // ── Label (truncated) ──
+            const maxLabelPx = LABEL_W - 8;
+            ctx.font = `${hov ? 'bold ' : ''}11px sans-serif`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = hov ? '#E6EDF3' : 'rgba(230,237,243,0.75)';
+            // Truncate text to fit label area
+            let label = item.name;
+            while (label.length > 3 && ctx.measureText(label).width > maxLabelPx) {
+                label = label.slice(0, -1);
+            }
+            if (label !== item.name) label = label.slice(0, -1) + '\u2026';
+            ctx.fillText(label, 4, cx);
+
+            // ── Bar track ──
+            const trackX = LABEL_W;
+            const trackH = 12;
+            const trackY = cx - trackH / 2;
+
+            ctx.fillStyle = 'rgba(255,255,255,0.06)';
+            ctx.beginPath();
+            ctx.roundRect
+                ? ctx.roundRect(trackX, trackY, BAR_W, trackH, 4)
+                : ctx.rect(trackX, trackY, BAR_W, trackH);
+            ctx.fill();
+
+            // ── Filled bar (log-scaled, animated by progress) ──
+            const logFrac = Math.log1p(item.total) / Math.log1p(maxTotal);
+            const barLen  = BAR_W * logFrac * progress;
+
+            if (barLen > 2) {
+                const grad = ctx.createLinearGradient(trackX, 0, trackX + barLen, 0);
+                grad.addColorStop(0, `${col}99`);
+                grad.addColorStop(1, col);
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.roundRect
+                    ? ctx.roundRect(trackX, trackY, barLen, trackH, 4)
+                    : ctx.rect(trackX, trackY, barLen, trackH);
+                ctx.fill();
+            }
+
+            // ── Query-intensity dot at bar end ──
+            if (item.qRuns > 0 && barLen > 4 && progress >= 1) {
+                const dotR = Math.min(7, 3 + Math.log1p(item.qRuns));
+                const dotX = trackX + barLen;
+                ctx.beginPath();
+                ctx.arc(dotX, cx, dotR, 0, Math.PI * 2);
+                ctx.fillStyle = col;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            // ── Count label at far right ──
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = 'rgba(255,255,255,0.45)';
+            ctx.fillText(item.total.toLocaleString(), W - PAD.r, cx);
+
+            // ── Hover tooltip ──
+            if (hov) {
+                const lines = [
+                    item.name,
+                    `${item.total.toLocaleString()} actions · ${item.days}d active`,
+                    item.qRuns > 0 ? `${item.qRuns.toLocaleString()} queries run` : 'No direct queries',
+                    item.edits > 0 ? `${item.edits} edit action${item.edits > 1 ? 's' : ''} (builder)` : 'Viewer role',
+                ];
+                const TW = 220, TH = lines.length * 15 + 12;
+                let tx = trackX + BAR_W * logFrac + 10;
+                let ty = cx - TH / 2;
+                if (tx + TW > W - 4) tx = trackX - TW - 6;
+                if (tx < 2) tx = 2;                  // don't clip off left edge
+                if (ty < 0) ty = 0;
+                if (ty + TH > H) ty = H - TH;
+
+                ctx.fillStyle = 'rgba(16,20,28,0.94)';
+                ctx.strokeStyle = `${col}99`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(tx, ty, TW, TH, 5);
+                else ctx.rect(tx, ty, TW, TH);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                lines.forEach((ln, li) => {
+                    ctx.font = li === 0 ? `bold 10px sans-serif` : '10px sans-serif';
+                    ctx.fillStyle = li === 0 ? col : 'rgba(230,237,243,0.85)';
+                    ctx.fillText(ln, tx + 7, ty + 7 + li * 15);
+                });
+            }
+        });
+    }
+
+    // Animate bars growing in
+    let start = null;
+    const ANIM_MS = 600;
+    function animate(ts) {
+        if (!start) start = ts;
+        const p = Math.min(1, (ts - start) / ANIM_MS);
+        // Ease-out cubic
+        const ease = 1 - Math.pow(1 - p, 3);
+        draw(ease);
+        if (p < 1) requestAnimationFrame(animate);
+        else draw(1);   // ensure final frame is crisp
+    }
+    requestAnimationFrame(animate);
+
+    // Hover detection
+    canvas.addEventListener('mousemove', e => {
+        const rect = canvas.getBoundingClientRect();
+        const my = (e.clientY - rect.top) * (canvas.height / devicePixelRatio / rect.height);
+        const newIdx = Math.floor((my - PAD.t) / ROW_H);
+        const next = (newIdx >= 0 && newIdx < items.length) ? newIdx : -1;
+        if (next !== hoveredIdx) { hoveredIdx = next; draw(1); }
+    });
+    canvas.addEventListener('mouseleave', () => { if (hoveredIdx !== -1) { hoveredIdx = -1; draw(1); } });
+}
+
+// Render charts
+document.addEventListener('DOMContentLoaded', () => {
+    // ── Archetype Radar Chart ──
+    if (personaData.archetype && personaData.archetype.all) {
+        renderRadarChart('archetypeRadar', personaData.archetype.all);
+    }
+
+    // ── WOW: Activity Signal Canvas ──
+    if (personaData.activity && personaData.activity.services) {
+        const primaryColor = (personaData.archetype && personaData.archetype.primary && personaData.archetype.primary.color)
+            ? personaData.archetype.primary.color : '#FF3621';
+        renderActivitySignal('activitySignalCanvas', personaData.activity.services, primaryColor);
+    }
+
+    // ── Radial Clock Chart (Hourly) ──
+    if (personaData.activity && personaData.activity.hourly_pattern) {
+        const primaryColor = (personaData.archetype && personaData.archetype.primary && personaData.archetype.primary.color)
+            ? personaData.archetype.primary.color : '#FF3621';
+        renderClockChart('hourlyClockChart', personaData.activity.hourly_pattern, primaryColor);
+    }
+
+    // ── Wave Chart (Day of Week) ──
+    if (personaData.activity && personaData.activity.dow_pattern) {
+        const dayNames = {1:'Sun',2:'Mon',3:'Tue',4:'Wed',5:'Thu',6:'Fri',7:'Sat'};
+        const dowData = personaData.activity.dow_pattern.map(d => ({
+            ...d,
+            day_name: dayNames[d.day_of_week] || String(d.day_of_week)
+        }));
+        renderWaveChart('dowWaveChart', dowData, 'day_name', 'event_count', '#58A6FF');
+    }
+
+    // ── GenAI Modality Constellation ──
+    if (personaData.genai && personaData.genai.modality_summary && personaData.genai.modality_summary.length) {
+        renderGenaiConstellation('genaiConstellationCanvas', personaData.genai.modality_summary);
+    }
+
+    // ── Dashboard Engagement Bubble Chart ──
+    if (personaData.dashboard_activity && personaData.dashboard_activity.top_dashboards && personaData.dashboard_activity.top_dashboards.length) {
+        renderDashBubbles(
+            'dashBubbleCanvas',
+            personaData.dashboard_activity.top_dashboards,
+            personaData.dashboard_activity.sessions
+        );
+    }
+
+    // ── Engagement Heatmap ──
+    if (personaData.engagement && personaData.engagement.heatmap) {
+        renderHeatmap('engagementHeatmap', personaData.engagement.heatmap);
+    }
+
+    // ── Cost Trend Chart ──
+    if (personaData.cost && personaData.cost.weekly_trend && personaData.cost.weekly_trend.length > 1) {
+        renderLineChart('costTrendChart', personaData.cost.weekly_trend, 'week', 'weekly_dbu', '#D29922');
+    }
+
+    // ── Stagger KPI card animations ──
+    document.querySelectorAll('.kpi-card').forEach((card, i) => {
+        card.style.animationDelay = `${i * 60}ms`;
+    });
+
+    // ── Count-up animation for KPI values ──
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                animateCountUp(entry.target);
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.3 });
+
+    document.querySelectorAll('.kpi-value').forEach(el => {
+        const text = el.textContent.trim();
+        const numMatch = text.match(/^([\d,]+)/);
+        if (numMatch) {
+            const target = parseInt(numMatch[1].replace(/,/g, ''), 10);
+            if (target > 0 && !text.includes('%')) {
+                el.dataset.target = target;
+                el.dataset.original = text;
+                el.textContent = '0';
+                observer.observe(el);
+            }
+        }
+    });
+
+    // ── Add tooltips to KPI cards ──
+    const tooltipMap = {
+        'Total Platform Events': 'All recorded actions in Databricks audit log',
+        'Active Days': 'Days with at least one recorded action',
+        'Services Used': 'Distinct Databricks services accessed',
+        'Client Tools': 'Interfaces used to access Databricks',
+        'SQL Queries Run': 'Total SQL statements executed',
+        'Query Success Rate': 'Percentage of queries that completed without error',
+        'Read (SELECT) Ratio': 'Share of queries that are read-only SELECTs',
+        'Heavy Queries (>10s)': 'Queries taking more than 10 seconds to execute',
+        'Workflows Owned': 'Jobs/workflows created or owned by you',
+        'Scheduled Jobs (CRON)': 'Jobs with recurring schedule triggers',
+        'Total Job Runs': 'Sum of all job executions in the period',
+        'Pipeline Reliability': 'Percentage of successful job runs',
+        'Tables Read (unique)': 'Distinct tables you read data from',
+        'Tables Written (unique)': 'Distinct tables you write data to',
+        'Catalogs Accessed': 'Unity Catalog catalogs you interact with',
+        'Downstream Consumers': 'Users who read tables you write to',
+        'Upstream Dependencies': 'Users whose tables you read from',
+        'Total Collaborators': 'All users connected to you via data lineage',
+        'Clusters': 'Compute clusters associated with your usage',
+    };
+
+    document.querySelectorAll('.kpi-card').forEach(card => {
+        const label = card.querySelector('.kpi-label');
+        if (!label) return;
+        const key = label.textContent.trim().replace(/\s*\(.*$/, '');
+        const desc = Object.entries(tooltipMap).find(([k]) => key.startsWith(k));
+        if (desc) {
+            const tip = document.createElement('div');
+            tip.className = 'kpi-tooltip';
+            tip.textContent = desc[1];
+            card.appendChild(tip);
+        }
+    });
+
+    // ── Confetti on first persona view ──
+    const confettiKey = 'persona_confetti_shown_' + (personaData.archetype?.primary?.name || '');
+    if (!sessionStorage.getItem(confettiKey)) {
+        sessionStorage.setItem(confettiKey, '1');
+        launchConfetti();
+    }
+});
+
+function renderHeatmap(containerId, data) {
+    const container = document.getElementById(containerId);
+    if (!container || !data || data.length === 0) return;
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const maxVal = Math.max(...data.map(d => d.event_count || 0));
+
+    // Build lookup: {day_of_week: {hour_of_day: count}}
+    const lookup = {};
+    data.forEach(d => {
+        const dow = d.day_of_week;
+        const hour = d.hour_of_day;
+        if (!lookup[dow]) lookup[dow] = {};
+        lookup[dow][hour] = d.event_count || 0;
+    });
+
+    // Render 7 rows (Sun=1 through Sat=7)
+    for (let dow = 1; dow <= 7; dow++) {
+        // Day label
+        const label = document.createElement('div');
+        label.className = 'heatmap-label';
+        label.textContent = dayNames[dow - 1];
+        container.appendChild(label);
+
+        // 24 hour cells
+        for (let h = 0; h < 24; h++) {
+            const val = (lookup[dow] && lookup[dow][h]) || 0;
+            const intensity = maxVal > 0 ? val / maxVal : 0;
+            const cell = document.createElement('div');
+            cell.className = 'heatmap-cell';
+            cell.title = `${dayNames[dow - 1]} ${h}:00 — ${val.toLocaleString()} events`;
+
+            if (val === 0) {
+                cell.style.background = 'var(--surface-2)';
+            } else {
+                // Green intensity scale matching GitHub contribution graph
+                const alpha = 0.15 + intensity * 0.85;
+                cell.style.background = `rgba(63, 185, 80, ${alpha})`;
+            }
+            container.appendChild(cell);
+        }
+    }
+}
+
+function renderLineChart(containerId, data, labelKey, valueKey, color) {
+    const container = document.getElementById(containerId);
+    if (!container || !data || data.length < 2) return;
+
+    const canvas = document.createElement('canvas');
+    const rect = container.getBoundingClientRect();
+    canvas.width = rect.width || 500;
+    canvas.height = rect.height || 150;
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    container.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    const padding = { top: 15, right: 15, bottom: 25, left: 50 };
+    const chartW = canvas.width - padding.left - padding.right;
+    const chartH = canvas.height - padding.top - padding.bottom;
+
+    const values = data.map(d => parseFloat(d[valueKey]) || 0);
+    const maxVal = Math.max(...values) || 1;
+
+    // Grid
+    ctx.strokeStyle = '#21262D';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 3; i++) {
+        const y = padding.top + (chartH / 3) * i;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(canvas.width - padding.right, y);
+        ctx.stroke();
+        ctx.fillStyle = '#8B949E';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.round(maxVal - (maxVal / 3) * i).toLocaleString(), padding.left - 6, y + 3);
+    }
+
+    // Line
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+
+    const points = [];
+    values.forEach((v, i) => {
+        const x = padding.left + (i / (values.length - 1)) * chartW;
+        const y = padding.top + chartH - (v / maxVal) * chartH;
+        points.push({ x, y });
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Fill area under line
+    ctx.lineTo(points[points.length - 1].x, padding.top + chartH);
+    ctx.lineTo(points[0].x, padding.top + chartH);
+    ctx.closePath();
+    ctx.fillStyle = color + '15';
+    ctx.fill();
+
+    // Dots
+    points.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+    });
+}
+
+function animateCountUp(el) {
+    const target = parseInt(el.dataset.target, 10);
+    const original = el.dataset.original;
+    const duration = Math.min(1200, Math.max(400, target / 10));
+    const start = performance.now();
+
+    function step(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        // Ease out cubic
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = Math.round(target * eased);
+        el.textContent = current.toLocaleString();
+        if (progress < 1) {
+            requestAnimationFrame(step);
+        } else {
+            // Restore original text (may have suffix like " (90d window)")
+            el.textContent = original;
+        }
+    }
+    requestAnimationFrame(step);
+}
+
+// ═══════════════════════════════════════════════════════
+// CONFETTI — lightweight canvas confetti burst
+// ═══════════════════════════════════════════════════════
+function launchConfetti() {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'confettiCanvas';
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const colors = ['#FF3621', '#58A6FF', '#3FB950', '#D29922', '#BC8CFF', '#F778BA'];
+    const pieces = [];
+
+    for (let i = 0; i < 120; i++) {
+        pieces.push({
+            x: canvas.width * 0.5 + (Math.random() - 0.5) * 200,
+            y: canvas.height * 0.3,
+            vx: (Math.random() - 0.5) * 12,
+            vy: Math.random() * -14 - 4,
+            w: Math.random() * 8 + 4,
+            h: Math.random() * 6 + 3,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            rotation: Math.random() * 360,
+            rotSpeed: (Math.random() - 0.5) * 12,
+            gravity: 0.25 + Math.random() * 0.15,
+            opacity: 1,
+        });
+    }
+
+    let frame = 0;
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let alive = false;
+        pieces.forEach(p => {
+            if (p.opacity <= 0) return;
+            alive = true;
+            p.vy += p.gravity;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.rotation += p.rotSpeed;
+            p.vx *= 0.99;
+
+            if (frame > 60) p.opacity -= 0.015;
+            if (p.opacity <= 0) return;
+
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation * Math.PI / 180);
+            ctx.globalAlpha = Math.max(0, p.opacity);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            ctx.restore();
+        });
+        frame++;
+        if (alive && frame < 200) {
+            requestAnimationFrame(animate);
+        } else {
+            canvas.remove();
+        }
+    }
+    requestAnimationFrame(animate);
+}
+
+</script>
+{% endif %}
+{% endblock %}

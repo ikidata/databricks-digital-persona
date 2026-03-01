@@ -1,0 +1,6 @@
+command: ["python", "-m", "app.main"]
+env:
+  - name: "WAREHOUSE_ID"
+    valueFrom: "starter-warehouse"
+  - name: "MODEL_SERVING_ENDPOINT"
+    valueFrom: "databricks-claude-sonnet-4-6"
