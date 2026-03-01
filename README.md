@@ -1,6 +1,6 @@
 # Turn your Databricks footprint into a virtual version of you
 
-![digital_image](https://github.com/ikidata/claude-databricks-digital-persona/blob/main/.images/feature_image_video_v2.gif?raw=true)
+![digital_image](https://github.com/ikidata/databricks-digital-persona/blob/main/.images/feature_image_video_v2.gif?raw=true)
 
 > **What if an agent could think and act exactly like you?**
 
